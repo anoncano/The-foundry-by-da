@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Briefcase, ClipboardList, Clock, FileText, User, X, Download, Eye, Plus } from "lucide-react";
+import jsPDF from "jspdf";
+import { Clock, FileText, User, X, Download } from "lucide-react";
 
 const statCards = [
   { title: "Draft Invoices", value: 2 },
@@ -20,29 +21,90 @@ function InvoiceBuilder({ onBack }) {
   const today = new Date().toISOString().split("T")[0];
   const nextInvoiceNumber = 126;
 
+  const [client, setClient] = useState("");
+  const [invoiceNumber, setInvoiceNumber] = useState(nextInvoiceNumber);
+  const [invoiceDate, setInvoiceDate] = useState(today);
+  const [serviceName, setServiceName] = useState("");
+  const [hours, setHours] = useState("");
+  const [rate, setRate] = useState("");
+  const [pdfUrl, setPdfUrl] = useState("");
+
+  useEffect(() => {
+    const doc = new jsPDF();
+    doc.text(`Invoice #${invoiceNumber}`, 10, 10);
+    doc.text(`Client: ${client}`, 10, 20);
+    doc.text(`Date: ${invoiceDate}`, 10, 30);
+    doc.text(`Service: ${serviceName}`, 10, 40);
+    doc.text(`Hours: ${hours}`, 10, 50);
+    doc.text(`Rate: $${rate}`, 10, 60);
+    const total = parseFloat(hours || "0") * parseFloat(rate || "0");
+    doc.text(`Total: $${total.toFixed(2)}`, 10, 70);
+    setPdfUrl(doc.output("datauristring"));
+  }, [client, invoiceNumber, invoiceDate, serviceName, hours, rate]);
+
   return (
     <div className="bg-white p-6 rounded-xl shadow space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold">Create New Invoice</h2>
         <button onClick={onBack} className="text-sm text-indigo-600 hover:underline">← Back</button>
       </div>
-      <form className="space-y-4">
-        <select className="w-full border px-4 py-2 rounded">
-          <option>Select Client</option>
-          <option>Jane Doe</option>
-          <option>Mark Smith</option>
-        </select>
-        <input className="w-full border px-4 py-2 rounded" placeholder={`Invoice #${nextInvoiceNumber}`} defaultValue={`Invoice #${nextInvoiceNumber}`} />
-        <input className="w-full border px-4 py-2 rounded" type="date" defaultValue={today} />
-        <div className="border rounded p-4 space-y-2">
-          <h4 className="font-semibold">Service Details</h4>
-          <input className="w-full border px-4 py-2 rounded" placeholder="Service Name" />
-          <input className="w-full border px-4 py-2 rounded" placeholder="Hours Worked" type="number" />
-          <input className="w-full border px-4 py-2 rounded" placeholder="Rate" type="number" />
-          <div className="text-right font-bold">Total: $200.00</div>
+      <div className="grid md:grid-cols-2 gap-6">
+        <form className="space-y-4">
+          <select
+            className="w-full border px-4 py-2 rounded"
+            value={client}
+            onChange={(e) => setClient(e.target.value)}
+          >
+            <option value="">Select Client</option>
+            <option>Jane Doe</option>
+            <option>Mark Smith</option>
+          </select>
+          <input
+            className="w-full border px-4 py-2 rounded"
+            placeholder={`Invoice #${nextInvoiceNumber}`}
+            value={invoiceNumber}
+            onChange={(e) => setInvoiceNumber(e.target.value)}
+          />
+          <input
+            className="w-full border px-4 py-2 rounded"
+            type="date"
+            value={invoiceDate}
+            onChange={(e) => setInvoiceDate(e.target.value)}
+          />
+          <div className="border rounded p-4 space-y-2">
+            <h4 className="font-semibold">Service Details</h4>
+            <input
+              className="w-full border px-4 py-2 rounded"
+              placeholder="Service Name"
+              value={serviceName}
+              onChange={(e) => setServiceName(e.target.value)}
+            />
+            <input
+              className="w-full border px-4 py-2 rounded"
+              placeholder="Hours Worked"
+              type="number"
+              value={hours}
+              onChange={(e) => setHours(e.target.value)}
+            />
+            <input
+              className="w-full border px-4 py-2 rounded"
+              placeholder="Rate"
+              type="number"
+              value={rate}
+              onChange={(e) => setRate(e.target.value)}
+            />
+            <div className="text-right font-bold">
+              Total: {(parseFloat(hours || "0") * parseFloat(rate || "0")).toFixed(2)}
+            </div>
+          </div>
+          <button className="w-full py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Create Invoice</button>
+        </form>
+        <div className="w-full h-96 border">
+          {pdfUrl && (
+            <iframe title="Invoice Preview" src={pdfUrl} className="w-full h-full" />
+          )}
         </div>
-        <button className="w-full py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Create Invoice</button>
-      </form>
+      </div>
     </div>
   );
 }
