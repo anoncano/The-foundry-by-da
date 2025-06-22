@@ -13,6 +13,9 @@ export default function WorkerSignupWizard() {
     abn: "",
     gstRegistered: "No",
     address: "",
+    bankName: "",
+    bsb: "",
+    accountNumber: "",
   });
 
   const next = () => setStep(step + 1);
@@ -63,6 +66,15 @@ export default function WorkerSignupWizard() {
 
           <label>Business Address (optional)</label>
           <input name="address" onChange={handleChange} value={form.address} className="w-full mb-4 p-2 border rounded" />
+
+          <label>Bank Name</label>
+          <input name="bankName" onChange={handleChange} value={form.bankName} className="w-full mb-4 p-2 border rounded" />
+
+          <label>BSB</label>
+          <input name="bsb" onChange={handleChange} value={form.bsb} className="w-full mb-4 p-2 border rounded" />
+
+          <label>Account Number</label>
+          <input name="accountNumber" onChange={handleChange} value={form.accountNumber} className="w-full mb-4 p-2 border rounded" />
 
           <div className="flex justify-between">
             <button onClick={prev} className="px-4 py-2 border rounded">Back</button>

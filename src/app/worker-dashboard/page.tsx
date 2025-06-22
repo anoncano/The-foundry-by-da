@@ -17,6 +17,16 @@ const quickActions = [
   { title: "Send Invoice", icon: <Download size={28} />, modal: "send" },
 ];
 
+const workerInfo = {
+  name: "John Worker",
+  tradingName: "John Worker Services",
+  abn: "123456789",
+  address: "123 Worker St, Exampleville",
+  bankName: "ABC Bank",
+  bsb: "123-456",
+  accountNumber: "12345678",
+};
+
 function InvoiceBuilder({ onBack }) {
   const today = new Date().toISOString().split("T")[0];
   const nextInvoiceNumber = 126;
@@ -31,14 +41,39 @@ function InvoiceBuilder({ onBack }) {
 
   useEffect(() => {
     const doc = new jsPDF();
-    doc.text(`Invoice #${invoiceNumber}`, 10, 10);
-    doc.text(`Client: ${client}`, 10, 20);
-    doc.text(`Date: ${invoiceDate}`, 10, 30);
-    doc.text(`Service: ${serviceName}`, 10, 40);
-    doc.text(`Hours: ${hours}`, 10, 50);
-    doc.text(`Rate: $${rate}`, 10, 60);
+
+    doc.setFontSize(18);
+    doc.text("Invoice", 105, 20, { align: "center" });
+    doc.setFontSize(12);
+
+    doc.text(workerInfo.tradingName, 10, 30);
+    doc.text(`ABN: ${workerInfo.abn}`, 10, 36);
+    doc.text(workerInfo.address, 10, 42);
+
+    doc.text(`Client: ${client}`, 140, 30);
+    doc.text(`Date: ${invoiceDate}`, 140, 36);
+    doc.text(`Invoice #: ${invoiceNumber}`, 140, 42);
+
+    doc.line(10, 48, 200, 48);
+    doc.text("Description", 10, 56);
+    doc.text("Hours", 120, 56);
+    doc.text("Rate", 150, 56);
+    doc.text("Amount", 190, 56, { align: "right" });
+    doc.line(10, 58, 200, 58);
+
     const total = parseFloat(hours || "0") * parseFloat(rate || "0");
-    doc.text(`Total: $${total.toFixed(2)}`, 10, 70);
+    doc.text(serviceName || "-", 10, 66);
+    doc.text(hours || "-", 120, 66);
+    doc.text(rate ? `$${rate}` : "-", 150, 66);
+    doc.text(`$${total.toFixed(2)}`, 190, 66, { align: "right" });
+
+    doc.line(10, 72, 200, 72);
+    doc.text(`Total: $${total.toFixed(2)}`, 190, 80, { align: "right" });
+
+    doc.text("Please pay to:", 10, 92);
+    doc.text(workerInfo.bankName, 10, 98);
+    doc.text(`BSB: ${workerInfo.bsb}  Account: ${workerInfo.accountNumber}`, 10, 104);
+
     setPdfUrl(doc.output("datauristring"));
   }, [client, invoiceNumber, invoiceDate, serviceName, hours, rate]);
 
@@ -101,7 +136,11 @@ function InvoiceBuilder({ onBack }) {
         </form>
         <div className="w-full h-96 border">
           {pdfUrl && (
-            <iframe title="Invoice Preview" src={pdfUrl} className="w-full h-full" />
+            <iframe
+              title="Invoice Preview"
+              src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=0`}
+              className="w-full h-full"
+            />
           )}
         </div>
       </div>
