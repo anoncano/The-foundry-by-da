@@ -27,16 +27,22 @@ const workerInfo = {
   accountNumber: "12345678",
 };
 
-function InvoiceBuilder({ onBack }) {
+function InvoiceBuilder({ onBack }: { onBack: () => void }) {
   const today = new Date().toISOString().split("T")[0];
   const nextInvoiceNumber = 126;
 
   const [client, setClient] = useState("");
-  const [invoiceNumber, setInvoiceNumber] = useState(nextInvoiceNumber);
+  const [invoiceNumber, setInvoiceNumber] = useState<number>(nextInvoiceNumber);
   const [invoiceDate, setInvoiceDate] = useState(today);
-  const [serviceName, setServiceName] = useState("");
-  const [hours, setHours] = useState("");
-  const [rate, setRate] = useState("");
+
+  const predefinedServices = [
+    "Community Access",
+    "Domestic Assistance",
+    "Therapy Session",
+  ];
+  const [items, setItems] = useState([
+    { service: "", custom: "", hours: "", rate: "" },
+  ]);
   const [pdfUrl, setPdfUrl] = useState("");
 
   useEffect(() => {
@@ -61,21 +67,28 @@ function InvoiceBuilder({ onBack }) {
     doc.text("Amount", 190, 56, { align: "right" });
     doc.line(10, 58, 200, 58);
 
-    const total = parseFloat(hours || "0") * parseFloat(rate || "0");
-    doc.text(serviceName || "-", 10, 66);
-    doc.text(hours || "-", 120, 66);
-    doc.text(rate ? `$${rate}` : "-", 150, 66);
-    doc.text(`$${total.toFixed(2)}`, 190, 66, { align: "right" });
+    let total = 0;
+    let y = 66;
+    items.forEach((item) => {
+      const desc = item.service === "custom" ? item.custom : item.service;
+      const amount = parseFloat(item.hours || "0") * parseFloat(item.rate || "0");
+      total += amount;
+      doc.text(desc || "-", 10, y);
+      doc.text(item.hours || "-", 120, y);
+      doc.text(item.rate ? `$${item.rate}` : "-", 150, y);
+      doc.text(`$${amount.toFixed(2)}`, 190, y, { align: "right" });
+      y += 8;
+    });
 
-    doc.line(10, 72, 200, 72);
-    doc.text(`Total: $${total.toFixed(2)}`, 190, 80, { align: "right" });
+    doc.line(10, y - 4, 200, y - 4);
+    doc.text(`Total: $${total.toFixed(2)}`, 190, y + 4, { align: "right" });
 
-    doc.text("Please pay to:", 10, 92);
-    doc.text(workerInfo.bankName, 10, 98);
-    doc.text(`BSB: ${workerInfo.bsb}  Account: ${workerInfo.accountNumber}`, 10, 104);
+    doc.text("Please pay to:", 10, y + 16);
+    doc.text(workerInfo.bankName, 10, y + 22);
+    doc.text(`BSB: ${workerInfo.bsb}  Account: ${workerInfo.accountNumber}`, 10, y + 28);
 
     setPdfUrl(doc.output("datauristring"));
-  }, [client, invoiceNumber, invoiceDate, serviceName, hours, rate]);
+  }, [client, invoiceNumber, invoiceDate, items]);
 
   return (
     <div className="bg-white p-6 rounded-xl shadow space-y-4">
@@ -83,8 +96,13 @@ function InvoiceBuilder({ onBack }) {
         <h2 className="text-xl font-bold">Create New Invoice</h2>
         <button onClick={onBack} className="text-sm text-indigo-600 hover:underline">← Back</button>
       </div>
-      <div className="grid md:grid-cols-2 gap-6">
-        <form className="space-y-4">
+      <div className="space-y-6">
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+          }}
+        >
           <select
             className="w-full border px-4 py-2 rounded"
             value={client}
@@ -98,7 +116,7 @@ function InvoiceBuilder({ onBack }) {
             className="w-full border px-4 py-2 rounded"
             placeholder={`Invoice #${nextInvoiceNumber}`}
             value={invoiceNumber}
-            onChange={(e) => setInvoiceNumber(e.target.value)}
+            onChange={(e) => setInvoiceNumber(Number(e.target.value))}
           />
           <input
             className="w-full border px-4 py-2 rounded"
@@ -106,31 +124,73 @@ function InvoiceBuilder({ onBack }) {
             value={invoiceDate}
             onChange={(e) => setInvoiceDate(e.target.value)}
           />
-          <div className="border rounded p-4 space-y-2">
+          <div className="border rounded p-4 space-y-4">
             <h4 className="font-semibold">Service Details</h4>
-            <input
-              className="w-full border px-4 py-2 rounded"
-              placeholder="Service Name"
-              value={serviceName}
-              onChange={(e) => setServiceName(e.target.value)}
-            />
-            <input
-              className="w-full border px-4 py-2 rounded"
-              placeholder="Hours Worked"
-              type="number"
-              value={hours}
-              onChange={(e) => setHours(e.target.value)}
-            />
-            <input
-              className="w-full border px-4 py-2 rounded"
-              placeholder="Rate"
-              type="number"
-              value={rate}
-              onChange={(e) => setRate(e.target.value)}
-            />
-            <div className="text-right font-bold">
-              Total: {(parseFloat(hours || "0") * parseFloat(rate || "0")).toFixed(2)}
-            </div>
+            {items.map((item, idx) => (
+              <div key={idx} className="grid md:grid-cols-4 gap-2 items-end">
+                <div className="md:col-span-2">
+                  <select
+                    className="w-full border px-2 py-1 rounded"
+                    value={item.service}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, service: value } : it)));
+                    }}
+                  >
+                    <option value="">Select Service</option>
+                    {predefinedServices.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                    <option value="custom">Custom</option>
+                  </select>
+                  {item.service === "custom" && (
+                    <input
+                      className="w-full border px-2 py-1 rounded mt-2"
+                      placeholder="Custom Service"
+                      value={item.custom}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, custom: value } : it)));
+                      }}
+                    />
+                  )}
+                </div>
+                <input
+                  className="border px-2 py-1 rounded"
+                  placeholder="Hours"
+                  type="number"
+                  value={item.hours}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, hours: value } : it)));
+                  }}
+                />
+                <input
+                  className="border px-2 py-1 rounded"
+                  placeholder="Rate"
+                  type="number"
+                  value={item.rate}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, rate: value } : it)));
+                  }}
+                />
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setItems((prev) => [...prev, { service: "", custom: "", hours: "", rate: "" }])}
+              className="text-indigo-600 text-sm mt-2"
+            >
+              + Add Service
+            </button>
+          </div>
+          <div className="text-right font-bold">
+            Total: {items
+              .reduce((sum, it) => sum + parseFloat(it.hours || "0") * parseFloat(it.rate || "0"), 0)
+              .toFixed(2)}
           </div>
           <button className="w-full py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Create Invoice</button>
         </form>
@@ -148,12 +208,12 @@ function InvoiceBuilder({ onBack }) {
   );
 }
 
-function Modal({ type, onClose }) {
-  const modalRef = useRef(null);
+function Modal({ type, onClose }: { type: string; onClose: () => void }) {
+  const modalRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (modalRef.current && !modalRef.current.contains(event.target)) {
+    function handleClickOutside(event: MouseEvent) {
+      if (modalRef.current && event.target instanceof Node && !modalRef.current.contains(event.target)) {
         onClose();
       }
     }
