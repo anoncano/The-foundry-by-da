@@ -2,7 +2,14 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import jsPDF from "jspdf";
-import { Clock, FileText, User, X, Download } from "lucide-react";
+import {
+  Clock,
+  FileText,
+  User,
+  X,
+  Download,
+  ClipboardList,
+} from "lucide-react";
 
 const statCards = [
   { title: "Draft Invoices", value: 2 },
@@ -13,7 +20,12 @@ const statCards = [
 const quickActions = [
   { title: "New Client", icon: <User size={28} />, modal: "client" },
   { title: "Log Shift", icon: <Clock size={28} />, modal: "shift" },
-  { title: "Generate Invoice", icon: <FileText size={28} />, modal: "generate" },
+  { title: "New Service", icon: <ClipboardList size={28} />, modal: "service" },
+  {
+    title: "Generate Invoice",
+    icon: <FileText size={28} />,
+    modal: "generate",
+  },
   { title: "Send Invoice", icon: <Download size={28} />, modal: "send" },
 ];
 
@@ -71,7 +83,8 @@ function InvoiceBuilder({ onBack }: { onBack: () => void }) {
     let y = 66;
     items.forEach((item) => {
       const desc = item.service === "custom" ? item.custom : item.service;
-      const amount = parseFloat(item.hours || "0") * parseFloat(item.rate || "0");
+      const amount =
+        parseFloat(item.hours || "0") * parseFloat(item.rate || "0");
       total += amount;
       doc.text(desc || "-", 10, y);
       doc.text(item.hours || "-", 120, y);
@@ -85,7 +98,11 @@ function InvoiceBuilder({ onBack }: { onBack: () => void }) {
 
     doc.text("Please pay to:", 10, y + 16);
     doc.text(workerInfo.bankName, 10, y + 22);
-    doc.text(`BSB: ${workerInfo.bsb}  Account: ${workerInfo.accountNumber}`, 10, y + 28);
+    doc.text(
+      `BSB: ${workerInfo.bsb}  Account: ${workerInfo.accountNumber}`,
+      10,
+      y + 28,
+    );
 
     setPdfUrl(doc.output("datauristring"));
   }, [client, invoiceNumber, invoiceDate, items]);
@@ -94,7 +111,12 @@ function InvoiceBuilder({ onBack }: { onBack: () => void }) {
     <div className="bg-white p-6 rounded-xl shadow space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold">Create New Invoice</h2>
-        <button onClick={onBack} className="text-sm text-indigo-600 hover:underline">← Back</button>
+        <button
+          onClick={onBack}
+          className="text-sm text-indigo-600 hover:underline"
+        >
+          ← Back
+        </button>
       </div>
       <div className="space-y-6">
         <form
@@ -134,7 +156,11 @@ function InvoiceBuilder({ onBack }: { onBack: () => void }) {
                     value={item.service}
                     onChange={(e) => {
                       const value = e.target.value;
-                      setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, service: value } : it)));
+                      setItems((prev) =>
+                        prev.map((it, i) =>
+                          i === idx ? { ...it, service: value } : it,
+                        ),
+                      );
                     }}
                   >
                     <option value="">Select Service</option>
@@ -152,7 +178,11 @@ function InvoiceBuilder({ onBack }: { onBack: () => void }) {
                       value={item.custom}
                       onChange={(e) => {
                         const value = e.target.value;
-                        setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, custom: value } : it)));
+                        setItems((prev) =>
+                          prev.map((it, i) =>
+                            i === idx ? { ...it, custom: value } : it,
+                          ),
+                        );
                       }}
                     />
                   )}
@@ -164,7 +194,11 @@ function InvoiceBuilder({ onBack }: { onBack: () => void }) {
                   value={item.hours}
                   onChange={(e) => {
                     const value = e.target.value;
-                    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, hours: value } : it)));
+                    setItems((prev) =>
+                      prev.map((it, i) =>
+                        i === idx ? { ...it, hours: value } : it,
+                      ),
+                    );
                   }}
                 />
                 <input
@@ -174,25 +208,42 @@ function InvoiceBuilder({ onBack }: { onBack: () => void }) {
                   value={item.rate}
                   onChange={(e) => {
                     const value = e.target.value;
-                    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, rate: value } : it)));
+                    setItems((prev) =>
+                      prev.map((it, i) =>
+                        i === idx ? { ...it, rate: value } : it,
+                      ),
+                    );
                   }}
                 />
               </div>
             ))}
             <button
               type="button"
-              onClick={() => setItems((prev) => [...prev, { service: "", custom: "", hours: "", rate: "" }])}
+              onClick={() =>
+                setItems((prev) => [
+                  ...prev,
+                  { service: "", custom: "", hours: "", rate: "" },
+                ])
+              }
               className="text-indigo-600 text-sm mt-2"
             >
               + Add Service
             </button>
           </div>
           <div className="text-right font-bold">
-            Total: {items
-              .reduce((sum, it) => sum + parseFloat(it.hours || "0") * parseFloat(it.rate || "0"), 0)
+            Total:{" "}
+            {items
+              .reduce(
+                (sum, it) =>
+                  sum +
+                  parseFloat(it.hours || "0") * parseFloat(it.rate || "0"),
+                0,
+              )
               .toFixed(2)}
           </div>
-          <button className="w-full py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Create Invoice</button>
+          <button className="w-full py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+            Create Invoice
+          </button>
         </form>
         <div className="w-full h-96 border">
           {pdfUrl && (
@@ -213,7 +264,11 @@ function Modal({ type, onClose }: { type: string; onClose: () => void }) {
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (modalRef.current && event.target instanceof Node && !modalRef.current.contains(event.target)) {
+      if (
+        modalRef.current &&
+        event.target instanceof Node &&
+        !modalRef.current.contains(event.target)
+      ) {
         onClose();
       }
     }
@@ -225,28 +280,95 @@ function Modal({ type, onClose }: { type: string; onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex justify-center items-center p-4">
-      <div className="absolute inset-0 bg-black bg-opacity-60"></div>
-      <div ref={modalRef} className="bg-white p-6 rounded-xl shadow-2xl relative w-full max-w-md z-10">
-        <button onClick={onClose} className="absolute top-3 right-3 text-gray-400 hover:text-gray-800 transition-colors">
+      <div className="absolute inset-0 bg-gray-900 bg-opacity-50"></div>
+      <div
+        ref={modalRef}
+        className="bg-white p-6 rounded-xl shadow-2xl relative w-full max-w-md z-10"
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 text-gray-400 hover:text-gray-800 transition-colors"
+        >
           <X size={24} />
         </button>
-        <h2 className="text-lg font-semibold mb-4 capitalize">{type === "client" ? "New Client" : type === "shift" ? "Log Shift" : "Modal"}</h2>
+        <h2 className="text-lg font-semibold mb-4 capitalize">
+          {type === "client"
+            ? "New Client"
+            : type === "shift"
+              ? "Log Shift"
+              : type === "service"
+                ? "New Service"
+                : "Modal"}
+        </h2>
         {type === "client" && (
           <form className="space-y-4">
-            <input className="w-full border px-4 py-2 rounded" placeholder="Client Name" />
-            <input className="w-full border px-4 py-2 rounded" placeholder="Email" type="email" />
-            <input className="w-full border px-4 py-2 rounded" placeholder="Phone" />
-            <textarea className="w-full border px-4 py-2 rounded" placeholder="Notes"></textarea>
-            <button className="w-full py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Save Client</button>
+            <input
+              className="w-full border px-4 py-2 rounded"
+              placeholder="Client Name"
+            />
+            <input
+              className="w-full border px-4 py-2 rounded"
+              placeholder="Email"
+              type="email"
+            />
+            <input
+              className="w-full border px-4 py-2 rounded"
+              placeholder="Phone"
+            />
+            <textarea
+              className="w-full border px-4 py-2 rounded"
+              placeholder="Notes"
+            ></textarea>
+            <button className="w-full py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+              Save Client
+            </button>
           </form>
         )}
         {type === "shift" && (
           <form className="space-y-4">
-            <input className="w-full border px-4 py-2 rounded" type="date" defaultValue={new Date().toISOString().split("T")[0]} />
-            <input className="w-full border px-4 py-2 rounded" placeholder="Start Time" type="time" />
-            <input className="w-full border px-4 py-2 rounded" placeholder="End Time" type="time" />
-            <textarea className="w-full border px-4 py-2 rounded" placeholder="Notes"></textarea>
-            <button className="w-full py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Log Shift</button>
+            <select className="w-full border px-4 py-2 rounded">
+              <option value="">Select Client</option>
+              <option>Jane Doe</option>
+              <option>Mark Smith</option>
+            </select>
+            <input
+              className="w-full border px-4 py-2 rounded"
+              type="date"
+              defaultValue={new Date().toISOString().split("T")[0]}
+            />
+            <input
+              className="w-full border px-4 py-2 rounded"
+              placeholder="Start Time"
+              type="time"
+            />
+            <input
+              className="w-full border px-4 py-2 rounded"
+              placeholder="End Time"
+              type="time"
+            />
+            <textarea
+              className="w-full border px-4 py-2 rounded"
+              placeholder="Notes"
+            ></textarea>
+            <button className="w-full py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+              Log Shift
+            </button>
+          </form>
+        )}
+        {type === "service" && (
+          <form className="space-y-4">
+            <input
+              className="w-full border px-4 py-2 rounded"
+              placeholder="Service Name"
+            />
+            <input
+              className="w-full border px-4 py-2 rounded"
+              placeholder="Hourly Rate"
+              type="number"
+            />
+            <button className="w-full py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+              Save Service
+            </button>
           </form>
         )}
       </div>
@@ -264,10 +386,36 @@ export default function WorkerDashboard() {
       <nav className="bg-white shadow px-6 py-4 flex justify-between items-center sticky top-0 z-40">
         <h1 className="text-xl font-bold text-indigo-600">Da Foundry</h1>
         <div className="flex space-x-6 text-sm font-medium text-gray-700">
-          <button onClick={() => setActiveTab("overview")} className="hover:text-indigo-600">Overview</button>
-          <button onClick={() => setActiveTab("clients")} className="hover:text-indigo-600">Clients</button>
-          <button onClick={() => setActiveTab("shifts")} className="hover:text-indigo-600">Shifts</button>
-          <button onClick={() => setActiveTab("invoices")} className="hover:text-indigo-600">Invoices</button>
+          <button
+            onClick={() => setActiveTab("overview")}
+            className="hover:text-indigo-600"
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => setActiveTab("clients")}
+            className="hover:text-indigo-600"
+          >
+            Clients
+          </button>
+          <button
+            onClick={() => setActiveTab("services")}
+            className="hover:text-indigo-600"
+          >
+            Services
+          </button>
+          <button
+            onClick={() => setActiveTab("shifts")}
+            className="hover:text-indigo-600"
+          >
+            Shifts
+          </button>
+          <button
+            onClick={() => setActiveTab("invoices")}
+            className="hover:text-indigo-600"
+          >
+            Invoices
+          </button>
         </div>
         <div className="text-sm">John Worker ▼</div>
       </nav>
@@ -279,16 +427,21 @@ export default function WorkerDashboard() {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
               {statCards.map((card, idx) => (
-                <div key={idx} className="bg-white p-6 rounded-lg shadow hover:shadow-md">
+                <div
+                  key={idx}
+                  className="bg-white p-6 rounded-lg shadow hover:shadow-md"
+                >
                   <p className="text-gray-500 text-sm">{card.title}</p>
-                  <p className="text-2xl font-semibold text-indigo-600">{card.value}</p>
+                  <p className="text-2xl font-semibold text-indigo-600">
+                    {card.value}
+                  </p>
                 </div>
               ))}
             </div>
 
             <div className="mb-8">
               <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-6">
                 {quickActions.map((action, idx) => (
                   <button
                     key={idx}
@@ -323,14 +476,60 @@ export default function WorkerDashboard() {
         {activeTab === "clients" && (
           <div className="bg-white p-6 rounded-xl shadow space-y-4">
             <h2 className="text-xl font-bold">Clients</h2>
-            <p className="text-sm text-gray-600">View and manage your client list.</p>
+            <p className="text-sm text-gray-600">
+              View and manage your client list.
+            </p>
             <div className="border rounded p-4">
               <h3 className="font-semibold">Jane Doe</h3>
-              <p className="text-sm text-gray-500">janedoe@email.com - 0400 123 456</p>
+              <p className="text-sm text-gray-500">
+                janedoe@email.com - 0400 123 456
+              </p>
             </div>
             <div className="border rounded p-4">
               <h3 className="font-semibold">Mark Smith</h3>
-              <p className="text-sm text-gray-500">marksmith@email.com - 0400 654 321</p>
+              <p className="text-sm text-gray-500">
+                marksmith@email.com - 0400 654 321
+              </p>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "services" && (
+          <div className="bg-white p-6 rounded-xl shadow space-y-4">
+            <h2 className="text-xl font-bold">Services</h2>
+            <p className="text-sm text-gray-600">
+              Your offered services and hourly rates.
+            </p>
+            <div className="border rounded p-4 flex justify-between items-center">
+              <div>
+                <h3 className="font-semibold">Community Access</h3>
+                <p className="text-sm text-gray-500">$50/hr</p>
+              </div>
+            </div>
+            <div className="border rounded p-4 flex justify-between items-center">
+              <div>
+                <h3 className="font-semibold">Domestic Assistance</h3>
+                <p className="text-sm text-gray-500">$45/hr</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "shifts" && (
+          <div className="bg-white p-6 rounded-xl shadow space-y-4">
+            <h2 className="text-xl font-bold">Shifts</h2>
+            <p className="text-sm text-gray-600">
+              Recent shifts you have logged.
+            </p>
+            <div className="border rounded p-4">
+              <p className="text-sm">
+                22 Jun 2025 - Jane Doe - 2h Community Access
+              </p>
+            </div>
+            <div className="border rounded p-4">
+              <p className="text-sm">
+                20 Jun 2025 - Mark Smith - 3h Domestic Assistance
+              </p>
             </div>
           </div>
         )}
@@ -338,9 +537,16 @@ export default function WorkerDashboard() {
         {activeTab === "invoices" && !showInvoiceBuilder && (
           <div className="bg-white p-6 rounded-xl shadow space-y-4">
             <h2 className="text-xl font-bold">Invoices</h2>
-            <p className="text-sm text-gray-600">Manage invoices grouped by clients.</p>
+            <p className="text-sm text-gray-600">
+              Manage invoices grouped by clients.
+            </p>
             <div className="text-right">
-              <button onClick={() => setShowInvoiceBuilder(true)} className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">New Invoice</button>
+              <button
+                onClick={() => setShowInvoiceBuilder(true)}
+                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+              >
+                New Invoice
+              </button>
             </div>
             <div className="space-y-4">
               <div className="border rounded p-4">
@@ -349,8 +555,12 @@ export default function WorkerDashboard() {
                   <li className="flex justify-between items-center">
                     <span>Invoice #124 - $300 - Draft</span>
                     <div className="space-x-2">
-                      <button className="px-3 py-1 bg-indigo-500 text-white rounded text-sm">Preview</button>
-                      <button className="px-3 py-1 bg-indigo-600 text-white rounded text-sm">Send</button>
+                      <button className="px-3 py-1 bg-indigo-500 text-white rounded text-sm">
+                        Preview
+                      </button>
+                      <button className="px-3 py-1 bg-indigo-600 text-white rounded text-sm">
+                        Send
+                      </button>
                     </div>
                   </li>
                 </ul>
@@ -360,7 +570,9 @@ export default function WorkerDashboard() {
                 <ul className="space-y-2">
                   <li className="flex justify-between items-center">
                     <span>Invoice #123 - $180 - Sent</span>
-                    <button className="px-3 py-1 bg-gray-400 text-white rounded text-sm">View</button>
+                    <button className="px-3 py-1 bg-gray-400 text-white rounded text-sm">
+                      View
+                    </button>
                   </li>
                 </ul>
               </div>
@@ -368,12 +580,22 @@ export default function WorkerDashboard() {
           </div>
         )}
 
-        {activeTab === "invoices" && showInvoiceBuilder && <InvoiceBuilder onBack={() => setShowInvoiceBuilder(false)} />}
+        {activeTab === "invoices" && showInvoiceBuilder && (
+          <InvoiceBuilder onBack={() => setShowInvoiceBuilder(false)} />
+        )}
 
-        {!["overview", "invoices", "clients"].includes(activeTab) && (
+        {!["overview", "invoices", "clients", "services"].includes(
+          activeTab,
+        ) && (
           <div className="text-gray-500 text-sm p-8 border rounded bg-white">
-            <p className="mb-2">This is the <strong>{activeTab}</strong> section. Build your UI here.</p>
-            <p>You can add forms, lists, modals, etc. depending on the tab selected.</p>
+            <p className="mb-2">
+              This is the <strong>{activeTab}</strong> section. Build your UI
+              here.
+            </p>
+            <p>
+              You can add forms, lists, modals, etc. depending on the tab
+              selected.
+            </p>
           </div>
         )}
       </main>

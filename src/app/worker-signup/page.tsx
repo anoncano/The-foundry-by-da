@@ -20,7 +20,9 @@ export default function WorkerSignupWizard() {
 
   const next = () => setStep(step + 1);
   const prev = () => setStep(step - 1);
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
@@ -38,47 +40,110 @@ export default function WorkerSignupWizard() {
       {step === 1 && (
         <>
           <label>Full Name</label>
-          <input name="fullName" onChange={handleChange} value={form.fullName} className="w-full mb-4 p-2 border rounded" />
+          <input
+            name="fullName"
+            onChange={handleChange}
+            value={form.fullName}
+            className="w-full mb-4 p-2 border rounded"
+          />
 
           <label>Email</label>
-          <input name="email" type="email" onChange={handleChange} value={form.email} className="w-full mb-4 p-2 border rounded" />
+          <input
+            name="email"
+            type="email"
+            onChange={handleChange}
+            value={form.email}
+            className="w-full mb-4 p-2 border rounded"
+          />
 
           <label>Phone</label>
-          <input name="phone" onChange={handleChange} value={form.phone} className="w-full mb-4 p-2 border rounded" />
+          <input
+            name="phone"
+            onChange={handleChange}
+            value={form.phone}
+            className="w-full mb-4 p-2 border rounded"
+          />
 
-          <button onClick={next} className="bg-indigo-600 text-white px-4 py-2 rounded">Next</button>
+          <button
+            onClick={next}
+            className="bg-indigo-600 text-white px-4 py-2 rounded"
+          >
+            Next
+          </button>
         </>
       )}
 
       {step === 2 && (
         <>
           <label>Trading Name (optional)</label>
-          <input name="tradingName" onChange={handleChange} value={form.tradingName} className="w-full mb-4 p-2 border rounded" />
+          <input
+            name="tradingName"
+            onChange={handleChange}
+            value={form.tradingName}
+            className="w-full mb-4 p-2 border rounded"
+          />
 
           <label>ABN</label>
-          <input name="abn" onChange={handleChange} value={form.abn} className="w-full mb-4 p-2 border rounded" />
+          <input
+            name="abn"
+            onChange={handleChange}
+            value={form.abn}
+            className="w-full mb-4 p-2 border rounded"
+          />
 
           <label>Registered for GST?</label>
-          <select name="gstRegistered" value={form.gstRegistered} onChange={handleChange} className="w-full mb-4 p-2 border rounded">
+          <select
+            name="gstRegistered"
+            value={form.gstRegistered}
+            onChange={handleChange}
+            className="w-full mb-4 p-2 border rounded"
+          >
             <option>No</option>
             <option>Yes</option>
           </select>
 
           <label>Business Address (optional)</label>
-          <input name="address" onChange={handleChange} value={form.address} className="w-full mb-4 p-2 border rounded" />
+          <input
+            name="address"
+            onChange={handleChange}
+            value={form.address}
+            className="w-full mb-4 p-2 border rounded"
+          />
 
           <label>Bank Name</label>
-          <input name="bankName" onChange={handleChange} value={form.bankName} className="w-full mb-4 p-2 border rounded" />
+          <input
+            name="bankName"
+            onChange={handleChange}
+            value={form.bankName}
+            className="w-full mb-4 p-2 border rounded"
+          />
 
           <label>BSB</label>
-          <input name="bsb" onChange={handleChange} value={form.bsb} className="w-full mb-4 p-2 border rounded" />
+          <input
+            name="bsb"
+            onChange={handleChange}
+            value={form.bsb}
+            className="w-full mb-4 p-2 border rounded"
+          />
 
           <label>Account Number</label>
-          <input name="accountNumber" onChange={handleChange} value={form.accountNumber} className="w-full mb-4 p-2 border rounded" />
+          <input
+            name="accountNumber"
+            onChange={handleChange}
+            value={form.accountNumber}
+            className="w-full mb-4 p-2 border rounded"
+          />
 
           <div className="flex justify-between">
-            <button onClick={prev} className="px-4 py-2 border rounded">Back</button>
-            <button onClick={next} className="bg-indigo-600 text-white px-4 py-2 rounded">Next</button>
+            <button onClick={prev} className="px-4 py-2 border rounded">
+              Back
+            </button>
+            <button
+              onClick={next}
+              className="bg-indigo-600 text-white px-4 py-2 rounded"
+            >
+              Next
+            </button>
           </div>
         </>
       )}
@@ -86,10 +151,19 @@ export default function WorkerSignupWizard() {
       {step === 3 && (
         <>
           <h2 className="text-lg font-semibold mb-4">Confirm Your Details</h2>
-          <pre className="text-sm bg-gray-100 p-4 rounded border mb-4">{JSON.stringify(form, null, 2)}</pre>
+          <pre className="text-sm bg-gray-100 p-4 rounded border mb-4">
+            {JSON.stringify(form, null, 2)}
+          </pre>
           <div className="flex justify-between">
-            <button onClick={prev} className="px-4 py-2 border rounded">Back</button>
-            <button onClick={handleSubmit} className="bg-green-600 text-white px-4 py-2 rounded">Submit</button>
+            <button onClick={prev} className="px-4 py-2 border rounded">
+              Back
+            </button>
+            <button
+              onClick={handleSubmit}
+              className="bg-green-600 text-white px-4 py-2 rounded"
+            >
+              Submit
+            </button>
           </div>
         </>
       )}
