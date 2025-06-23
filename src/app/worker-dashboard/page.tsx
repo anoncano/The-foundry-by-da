@@ -29,6 +29,19 @@ const quickActions = [
   { title: "Send Invoice", icon: <Download size={28} />, modal: "send" },
 ];
 
+interface Service {
+  name: string;
+  rate: string;
+  unit: string;
+}
+
+interface Client {
+  name: string;
+  email: string;
+  phone: string;
+  notes?: string;
+}
+
 const workerInfo = {
   name: "John Worker",
   tradingName: "John Worker Services",
@@ -39,21 +52,26 @@ const workerInfo = {
   accountNumber: "12345678",
 };
 
-function InvoiceBuilder({ onBack }: { onBack: () => void }) {
+function InvoiceBuilder({
+  onBack,
+  services,
+  clients,
+}: {
+  onBack: () => void;
+  services: Service[];
+  clients: Client[];
+}) {
   const today = new Date().toISOString().split("T")[0];
   const nextInvoiceNumber = 126;
 
   const [client, setClient] = useState("");
   const [invoiceNumber, setInvoiceNumber] = useState<number>(nextInvoiceNumber);
   const [invoiceDate, setInvoiceDate] = useState(today);
+  const [title, setTitle] = useState("Invoice");
+  const [note, setNote] = useState("");
 
-  const predefinedServices = [
-    "Community Access",
-    "Domestic Assistance",
-    "Therapy Session",
-  ];
   const [items, setItems] = useState([
-    { service: "", custom: "", hours: "", rate: "" },
+    { service: "", custom: "", qty: "", rate: "", unit: "" },
   ]);
   const [pdfUrl, setPdfUrl] = useState("");
 
@@ -61,7 +79,7 @@ function InvoiceBuilder({ onBack }: { onBack: () => void }) {
     const doc = new jsPDF();
 
     doc.setFontSize(18);
-    doc.text("Invoice", 105, 20, { align: "center" });
+    doc.text(title || "Invoice", 105, 20, { align: "center" });
     doc.setFontSize(12);
 
     doc.text(workerInfo.tradingName, 10, 30);
@@ -74,7 +92,7 @@ function InvoiceBuilder({ onBack }: { onBack: () => void }) {
 
     doc.line(10, 48, 200, 48);
     doc.text("Description", 10, 56);
-    doc.text("Hours", 120, 56);
+    doc.text("Qty", 120, 56);
     doc.text("Rate", 150, 56);
     doc.text("Amount", 190, 56, { align: "right" });
     doc.line(10, 58, 200, 58);
@@ -84,10 +102,10 @@ function InvoiceBuilder({ onBack }: { onBack: () => void }) {
     items.forEach((item) => {
       const desc = item.service === "custom" ? item.custom : item.service;
       const amount =
-        parseFloat(item.hours || "0") * parseFloat(item.rate || "0");
+        parseFloat(item.qty || "0") * parseFloat(item.rate || "0");
       total += amount;
       doc.text(desc || "-", 10, y);
-      doc.text(item.hours || "-", 120, y);
+      doc.text(item.qty || "-", 120, y);
       doc.text(item.rate ? `$${item.rate}` : "-", 150, y);
       doc.text(`$${amount.toFixed(2)}`, 190, y, { align: "right" });
       y += 8;
@@ -103,9 +121,12 @@ function InvoiceBuilder({ onBack }: { onBack: () => void }) {
       10,
       y + 28,
     );
+    if (note) {
+      doc.text(note, 10, y + 40);
+    }
 
     setPdfUrl(doc.output("datauristring"));
-  }, [client, invoiceNumber, invoiceDate, items]);
+  }, [client, invoiceNumber, invoiceDate, items, title, note]);
 
   return (
     <div className="bg-white p-6 rounded-xl shadow space-y-4">
@@ -131,9 +152,18 @@ function InvoiceBuilder({ onBack }: { onBack: () => void }) {
             onChange={(e) => setClient(e.target.value)}
           >
             <option value="">Select Client</option>
-            <option>Jane Doe</option>
-            <option>Mark Smith</option>
+            {clients.map((c) => (
+              <option key={c.name} value={c.name}>
+                {c.name}
+              </option>
+            ))}
           </select>
+          <input
+            className="w-full border px-4 py-2 rounded"
+            placeholder="Invoice Title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
           <input
             className="w-full border px-4 py-2 rounded"
             placeholder={`Invoice #${nextInvoiceNumber}`}
@@ -157,16 +187,26 @@ function InvoiceBuilder({ onBack }: { onBack: () => void }) {
                     onChange={(e) => {
                       const value = e.target.value;
                       setItems((prev) =>
-                        prev.map((it, i) =>
-                          i === idx ? { ...it, service: value } : it,
-                        ),
+                        prev.map((it, i) => {
+                          if (i !== idx) return it;
+                          if (value === "custom") {
+                            return { ...it, service: value, rate: "", unit: "" };
+                          }
+                          const svc = services.find((s) => s.name === value);
+                          return {
+                            ...it,
+                            service: value,
+                            rate: svc ? svc.rate : "",
+                            unit: svc ? svc.unit : "",
+                          };
+                        }),
                       );
                     }}
                   >
                     <option value="">Select Service</option>
-                    {predefinedServices.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
+                    {services.map((s) => (
+                      <option key={s.name} value={s.name}>
+                        {s.name}
                       </option>
                     ))}
                     <option value="custom">Custom</option>
@@ -189,14 +229,14 @@ function InvoiceBuilder({ onBack }: { onBack: () => void }) {
                 </div>
                 <input
                   className="border px-2 py-1 rounded"
-                  placeholder="Hours"
+                  placeholder={item.unit || "Qty"}
                   type="number"
-                  value={item.hours}
+                  value={item.qty}
                   onChange={(e) => {
                     const value = e.target.value;
                     setItems((prev) =>
                       prev.map((it, i) =>
-                        i === idx ? { ...it, hours: value } : it,
+                        i === idx ? { ...it, qty: value } : it,
                       ),
                     );
                   }}
@@ -222,7 +262,7 @@ function InvoiceBuilder({ onBack }: { onBack: () => void }) {
               onClick={() =>
                 setItems((prev) => [
                   ...prev,
-                  { service: "", custom: "", hours: "", rate: "" },
+                  { service: "", custom: "", qty: "", rate: "", unit: "" },
                 ])
               }
               className="text-indigo-600 text-sm mt-2"
@@ -230,13 +270,18 @@ function InvoiceBuilder({ onBack }: { onBack: () => void }) {
               + Add Service
             </button>
           </div>
+          <textarea
+            className="w-full border px-2 py-1 rounded"
+            placeholder="Notes"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+          ></textarea>
           <div className="text-right font-bold">
             Total:{" "}
             {items
               .reduce(
                 (sum, it) =>
-                  sum +
-                  parseFloat(it.hours || "0") * parseFloat(it.rate || "0"),
+                  sum + parseFloat(it.qty || "0") * parseFloat(it.rate || "0"),
                 0,
               )
               .toFixed(2)}
@@ -259,7 +304,19 @@ function InvoiceBuilder({ onBack }: { onBack: () => void }) {
   );
 }
 
-function Modal({ type, onClose }: { type: string; onClose: () => void }) {
+function Modal({
+  type,
+  onClose,
+  onAddClient,
+  onAddService,
+  clients,
+}: {
+  type: string;
+  onClose: () => void;
+  onAddClient: (client: Client) => void;
+  onAddService: (service: Service) => void;
+  clients: Client[];
+}) {
   const modalRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -301,35 +358,34 @@ function Modal({ type, onClose }: { type: string; onClose: () => void }) {
                 : "Modal"}
         </h2>
         {type === "client" && (
-          <form className="space-y-4">
-            <input
-              className="w-full border px-4 py-2 rounded"
-              placeholder="Client Name"
-            />
-            <input
-              className="w-full border px-4 py-2 rounded"
-              placeholder="Email"
-              type="email"
-            />
-            <input
-              className="w-full border px-4 py-2 rounded"
-              placeholder="Phone"
-            />
-            <textarea
-              className="w-full border px-4 py-2 rounded"
-              placeholder="Notes"
-            ></textarea>
-            <button className="w-full py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
-              Save Client
-            </button>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              onAddClient({
+                name: String(formData.get("name")),
+                email: String(formData.get("email")),
+                phone: String(formData.get("phone")),
+                notes: String(formData.get("notes")),
+              });
+              onClose();
+            }}
+          >
+            <input name="name" className="w-full border px-4 py-2 rounded" placeholder="Client Name" />
+            <input name="email" className="w-full border px-4 py-2 rounded" placeholder="Email" type="email" />
+            <input name="phone" className="w-full border px-4 py-2 rounded" placeholder="Phone" />
+            <textarea name="notes" className="w-full border px-4 py-2 rounded" placeholder="Notes"></textarea>
+            <button className="w-full py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Save Client</button>
           </form>
         )}
         {type === "shift" && (
           <form className="space-y-4">
             <select className="w-full border px-4 py-2 rounded">
               <option value="">Select Client</option>
-              <option>Jane Doe</option>
-              <option>Mark Smith</option>
+              {clients.map((c) => (
+                <option key={c.name}>{c.name}</option>
+              ))}
             </select>
             <input
               className="w-full border px-4 py-2 rounded"
@@ -356,19 +412,23 @@ function Modal({ type, onClose }: { type: string; onClose: () => void }) {
           </form>
         )}
         {type === "service" && (
-          <form className="space-y-4">
-            <input
-              className="w-full border px-4 py-2 rounded"
-              placeholder="Service Name"
-            />
-            <input
-              className="w-full border px-4 py-2 rounded"
-              placeholder="Hourly Rate"
-              type="number"
-            />
-            <button className="w-full py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
-              Save Service
-            </button>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              onAddService({
+                name: String(formData.get("name")),
+                rate: String(formData.get("rate")),
+                unit: String(formData.get("unit")),
+              });
+              onClose();
+            }}
+          >
+            <input name="name" className="w-full border px-4 py-2 rounded" placeholder="Service Name" />
+            <input name="rate" className="w-full border px-4 py-2 rounded" placeholder="Rate" type="number" />
+            <input name="unit" className="w-full border px-4 py-2 rounded" placeholder="Unit (e.g. hrs)" />
+            <button className="w-full py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Save Service</button>
           </form>
         )}
       </div>
@@ -380,6 +440,14 @@ export default function WorkerDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [showInvoiceBuilder, setShowInvoiceBuilder] = useState(false);
   const [activeModal, setActiveModal] = useState("");
+  const [clients, setClients] = useState<Client[]>([
+    { name: "Jane Doe", email: "janedoe@email.com", phone: "0400 123 456" },
+    { name: "Mark Smith", email: "marksmith@email.com", phone: "0400 654 321" },
+  ]);
+  const [services, setServices] = useState<Service[]>([
+    { name: "Community Access", rate: "50", unit: "hrs" },
+    { name: "Domestic Assistance", rate: "45", unit: "hrs" },
+  ]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -420,7 +488,13 @@ export default function WorkerDashboard() {
         <div className="text-sm">John Worker ▼</div>
       </nav>
 
-      <Modal type={activeModal} onClose={() => setActiveModal("")} />
+      <Modal
+        type={activeModal}
+        onClose={() => setActiveModal("")}
+        onAddClient={(c) => setClients((prev) => [...prev, c])}
+        onAddService={(s) => setServices((prev) => [...prev, s])}
+        clients={clients}
+      />
 
       <main className="max-w-6xl mx-auto p-6">
         {activeTab === "overview" && (
@@ -479,18 +553,15 @@ export default function WorkerDashboard() {
             <p className="text-sm text-gray-600">
               View and manage your client list.
             </p>
-            <div className="border rounded p-4">
-              <h3 className="font-semibold">Jane Doe</h3>
-              <p className="text-sm text-gray-500">
-                janedoe@email.com - 0400 123 456
-              </p>
-            </div>
-            <div className="border rounded p-4">
-              <h3 className="font-semibold">Mark Smith</h3>
-              <p className="text-sm text-gray-500">
-                marksmith@email.com - 0400 654 321
-              </p>
-            </div>
+            {clients.map((c, idx) => (
+              <div key={idx} className="border rounded p-4">
+                <h3 className="font-semibold">{c.name}</h3>
+                <p className="text-sm text-gray-500">
+                  {c.email} - {c.phone}
+                </p>
+                {c.notes && <p className="text-xs mt-1">{c.notes}</p>}
+              </div>
+            ))}
           </div>
         )}
 
@@ -500,18 +571,14 @@ export default function WorkerDashboard() {
             <p className="text-sm text-gray-600">
               Your offered services and hourly rates.
             </p>
-            <div className="border rounded p-4 flex justify-between items-center">
-              <div>
-                <h3 className="font-semibold">Community Access</h3>
-                <p className="text-sm text-gray-500">$50/hr</p>
+            {services.map((s, idx) => (
+              <div key={idx} className="border rounded p-4 flex justify-between items-center">
+                <div>
+                  <h3 className="font-semibold">{s.name}</h3>
+                  <p className="text-sm text-gray-500">${s.rate}/{s.unit}</p>
+                </div>
               </div>
-            </div>
-            <div className="border rounded p-4 flex justify-between items-center">
-              <div>
-                <h3 className="font-semibold">Domestic Assistance</h3>
-                <p className="text-sm text-gray-500">$45/hr</p>
-              </div>
-            </div>
+            ))}
           </div>
         )}
 
@@ -581,7 +648,11 @@ export default function WorkerDashboard() {
         )}
 
         {activeTab === "invoices" && showInvoiceBuilder && (
-          <InvoiceBuilder onBack={() => setShowInvoiceBuilder(false)} />
+          <InvoiceBuilder
+            onBack={() => setShowInvoiceBuilder(false)}
+            services={services}
+            clients={clients}
+          />
         )}
 
         {!["overview", "invoices", "clients", "services"].includes(
