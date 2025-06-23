@@ -1,0 +1,2646 @@
+"use client";
+
+import React from "react";
+// A global window object is used for the jsPDF library, so we need to declare it here
+declare global {
+    interface Window {
+        jspdf: any;
+        ActiveXObject: any;
+    }
+}
+import {
+  Clock,
+  FileText,
+  User,
+  X,
+  Download,
+  ClipboardList,
+  ChevronDown,
+  Plus,
+  Edit,
+  Trash2,
+  Archive,
+  ArrowLeft,
+  Briefcase,
+  Users,
+  FileSignature,
+  Send,
+  DollarSign,
+  Upload,
+  Info,
+  MoreHorizontal,
+  Link as LinkIcon,
+  Book,
+  Menu,
+  LogOut,
+  Calendar,
+  Search,
+  Filter,
+  LayoutDashboard,
+  GripVertical,
+  Settings,
+  View,
+  Palette,
+  Pin,
+  PinOff,
+  Bold,
+  Italic,
+  Underline
+} from "lucide-react";
+
+// --- Data Interfaces ---
+interface CustomField {
+  key: string;
+  value: string;
+}
+
+interface ScheduleItem {
+    id: number;
+    day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
+    startTime: string;
+    endTime: string;
+    service: string;
+}
+
+interface Service {
+  id: number;
+  name: string;
+  rate: string;
+  unit: string;
+  type: "service" | "product";
+}
+
+interface PdfTemplate {
+    id: number;
+    name: string;
+    font: 'Helvetica' | 'Times' | 'Courier';
+    accentColor: string;
+    logo?: string; // Will store as base64 data URL
+    notes?: string;
+}
+
+interface Client {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  notes?: string;
+  services: string[];
+  pdfTemplateId?: number;
+  customFields?: CustomField[];
+  schedule?: ScheduleItem[];
+}
+
+interface InvoiceItem {
+  description: string;
+  qty: number;
+  rate: number;
+}
+
+interface Invoice {
+  id: number;
+  client: string;
+  date: string;
+  items: InvoiceItem[];
+  status: "draft" | "sent" | "paid";
+  note?: string;
+}
+
+interface Shift {
+    id: number;
+    client: string;
+    service: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    notes: string;
+}
+
+interface Expense {
+  id: number;
+  date: string;
+  description: string;
+  category: string;
+  amount: number;
+  receipt?: File;
+}
+
+interface RecurringExpense {
+    id: number;
+    name: string;
+    category: string;
+    price: number;
+}
+
+interface WorkerInfo {
+    name: string;
+    tradingName: string;
+    abn: string;
+    address: string;
+    bankName: string;
+    bsb: string;
+    accountNumber: string;
+    invoiceFrequency: 'Weekly' | 'Fortnightly' | 'Monthly' | 'Custom';
+    customInvoiceDays?: number;
+    preferredInvoiceDay: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
+    automateInvoices: boolean;
+}
+
+
+// --- Mock Data ---
+const initialWorkerInfo: WorkerInfo = {
+  name: "John Worker",
+  tradingName: "John Worker Services",
+  abn: "123456789",
+  address: "123 Worker St, Exampleville",
+  bankName: "ABC Bank",
+  bsb: "123-456",
+  accountNumber: "12345678",
+  invoiceFrequency: 'Weekly',
+  customInvoiceDays: 14,
+  preferredInvoiceDay: 'Monday',
+  automateInvoices: true,
+};
+
+const initialPdfTemplates: PdfTemplate[] = [
+    { id: 1, name: 'Default Template', font: 'Helvetica', accentColor: '#3B82F6', notes: "Thank you for your business." },
+    { id: 2, name: 'Modern', font: 'Courier', accentColor: '#10B981'},
+];
+
+const initialServices: Service[] = [
+  { id: 1, name: "Community Access", rate: "50", unit: "hrs", type: "service" },
+  { id: 2, name: "Domestic Assistance", rate: "45", unit: "hrs", type: "service" },
+  { id: 3, name: "Yard Maintenance", rate: "60", unit: "hrs", type: "service" },
+];
+
+const initialClients: Client[] = [
+  {
+    id: 1,
+    name: "Jane Doe",
+    email: "janedoe@email.com",
+    phone: "0400 123 456",
+    services: ["Community Access"],
+    pdfTemplateId: 2,
+    notes: "Initial consultation completed. Prefers morning shifts.",
+    customFields: [
+        { key: 'Billing Email', value: 'billing@janedoe.com' },
+        { key: 'Address', value: '123 Main St, Anytown, NSW 2000' }
+    ],
+    schedule: [
+        { id: 1, day: 'Wednesday', startTime: '09:00', endTime: '11:00', service: 'Community Access' },
+        { id: 2, day: 'Friday', startTime: '10:00', endTime: '12:00', service: 'Community Access' },
+    ]
+  },
+  {
+    id: 2,
+    name: "Mark Smith",
+    email: "marksmith@email.com",
+    phone: "0400 654 321",
+    services: ["Domestic Assistance", "Yard Maintenance"],
+    customFields: [],
+    schedule: [
+        { id: 3, day: 'Tuesday', startTime: '13:00', endTime: '15:00', service: 'Yard Maintenance' },
+    ]
+  },
+];
+
+const initialInvoices: Invoice[] = [
+    ...Array.from({length: 25}, (_, i) => ({
+      id: 200 + i,
+      client: i % 2 === 0 ? "Jane Doe" : "Mark Smith",
+      date: new Date(new Date().setDate(new Date().getDate() - (i * 5))).toISOString().split("T")[0],
+      items: [{ description: i % 2 === 0 ? "Community Access" : "Yard Maintenance", qty: i + 1, rate: i % 2 === 0 ? 50 : 60 }],
+      status: i < 8 ? 'draft' : i < 18 ? 'sent' : 'paid',
+    })),
+];
+
+const initialExpenses: Expense[] = [
+    { id: 1, date: '2025-06-20', description: 'Sunscreen for outdoor work', category: 'Materials', amount: 22.50 },
+    { id: 2, date: '2025-06-10', description: 'Fuel for travel to client', category: 'Travel', amount: 45.70 },
+    { id: 3, date: '2025-05-20', description: 'New work boots', category: 'Equipment', amount: 155.00 },
+];
+
+const initialShifts: Shift[] = [
+    ...Array.from({length: 22}, (_, i) => ({
+        id: 100 + i, client: i % 2 === 0 ? 'Jane Doe' : 'Mark Smith', service: i % 2 === 0 ? 'Community Access' : 'Yard Maintenance', date: `2025-06-${20-i > 0 ? 20-i : 1}`, startTime: '09:00', endTime: '11:00', notes: `Visited library, entry #${i+1}.`
+    })),
+]
+
+const initialRecurringExpenses: RecurringExpense[] = [
+    {id: 1, name: 'Standard Cleaning Supplies', category: 'Materials', price: 25.00},
+    {id: 2, name: 'Travel (per km)', category: 'Travel', price: 0.85},
+    {id: 3, name: 'Protective Gloves (box)', category: 'Equipment', price: 15.00},
+];
+
+
+// --- Reusable UI Components ---
+
+const StatCard = ({ title, value, icon, onClick, tabKey }) => (
+  <button
+    onClick={() => onClick(tabKey)}
+    className="bg-white p-5 rounded-xl shadow-sm hover:shadow-lg transition-shadow duration-300 w-full text-left group"
+  >
+    <div className="flex justify-between items-start">
+      <p className="text-slate-500 text-sm font-medium">{title}</p>
+      <div className="bg-sky-100 text-sky-600 p-2 rounded-lg">
+        {icon}
+      </div>
+    </div>
+    <p className="text-3xl font-bold text-slate-800 mt-2">{value}</p>
+  </button>
+);
+
+const QuickActionButton = ({ title, icon, onClick, draggableProps }) => (
+  <div {...draggableProps} className="cursor-move">
+      <button
+        onClick={onClick}
+        className="bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-medium py-4 px-4 rounded-xl flex flex-col items-center justify-center space-y-2.5 shadow-sm hover:shadow-md transition-all duration-300 text-center h-full w-full"
+      >
+        <div className="bg-indigo-100 text-indigo-600 p-3 rounded-full">
+          {icon}
+        </div>
+        <span className="text-sm">{title}</span>
+      </button>
+  </div>
+);
+
+function AppModal({ isOpen, onClose, children, title, maxWidth="max-w-md" }) {
+  const modalRef = React.useRef<HTMLDivElement | null>(null);
+
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (modalRef.current && !modalRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    }
+    if (isOpen) {
+        document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-center items-center p-4 bg-black/50 backdrop-blur-sm transition-opacity duration-300">
+      <div
+        ref={modalRef}
+        className={`bg-white p-6 rounded-xl shadow-2xl relative w-full ${maxWidth} z-10 max-h-[90vh] overflow-y-auto transform transition-all duration-300 scale-95 opacity-0 animate-fade-in-scale`}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-800 transition-colors"
+        >
+          <X size={24} />
+        </button>
+        <h2 className="text-xl font-semibold mb-4 text-slate-800">{title}</h2>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// --- Editor Components ---
+
+function ProfileEditor({ workerInfo, onSave, onBack }) {
+    const [info, setInfo] = React.useState(workerInfo);
+
+    const handleChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        setInfo(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave(info);
+        onBack();
+    };
+
+    return (
+        <form className="space-y-4" onSubmit={handleSubmit}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label className="form-label" htmlFor="worker-name">Full Name</label>
+                    <input id="worker-name" name="name" className="form-input" value={info.name} onChange={handleChange} required />
+                </div>
+                <div>
+                    <label className="form-label" htmlFor="worker-trading">Trading Name</label>
+                    <input id="worker-trading" name="tradingName" className="form-input" value={info.tradingName} onChange={handleChange} />
+                </div>
+            </div>
+             <div>
+                <label className="form-label" htmlFor="worker-abn">ABN</label>
+                <input id="worker-abn" name="abn" className="form-input" value={info.abn} onChange={handleChange} />
+            </div>
+             <div>
+                <label className="form-label" htmlFor="worker-address">Address</label>
+                <input id="worker-address" name="address" className="form-input" value={info.address} onChange={handleChange} />
+            </div>
+             <div className="border-t pt-4 space-y-4">
+                <h3 className="font-semibold text-slate-700">Invoice Settings</h3>
+                <div className="flex items-center justify-between bg-slate-50 p-3 rounded-lg">
+                     <label className="font-medium text-slate-700" htmlFor="automateInvoices">Automate Invoicing</label>
+                     <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" name="automateInvoices" checked={info.automateInvoices} onChange={handleChange} id="automateInvoices" className="sr-only peer" />
+                        <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-indigo-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                     </label>
+                </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="form-label" htmlFor="worker-invoice-frequency">Frequency</label>
+                        <select id="worker-invoice-frequency" name="invoiceFrequency" className="form-input" value={info.invoiceFrequency} onChange={handleChange}>
+                            <option>Weekly</option>
+                            <option>Fortnightly</option>
+                            <option>Monthly</option>
+                            <option>Custom</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="form-label" htmlFor="worker-preferred-day">Preferred Send Day</label>
+                        <select id="worker-preferred-day" name="preferredInvoiceDay" className="form-input" value={info.preferredInvoiceDay} onChange={handleChange}>
+                            {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => <option key={day}>{day}</option>)}
+                        </select>
+                    </div>
+                </div>
+                {info.invoiceFrequency === 'Custom' && (
+                    <div>
+                        <label className="form-label" htmlFor="worker-custom-days">Invoice Every (days)</label>
+                        <input id="worker-custom-days" name="customInvoiceDays" type="number" className="form-input" value={info.customInvoiceDays || ''} onChange={handleChange} placeholder="e.g. 30"/>
+                    </div>
+                )}
+             </div>
+             <div className="border-t pt-4 space-y-4">
+                 <h3 className="font-semibold text-slate-700">Bank Details</h3>
+                 <div>
+                    <label className="form-label" htmlFor="worker-bank">Bank Name</label>
+                    <input id="worker-bank" name="bankName" className="form-input" value={info.bankName} onChange={handleChange} />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label className="form-label" htmlFor="worker-bsb">BSB</label>
+                        <input id="worker-bsb" name="bsb" className="form-input" value={info.bsb} onChange={handleChange} />
+                    </div>
+                    <div>
+                        <label className="form-label" htmlFor="worker-account">Account Number</label>
+                        <input id="worker-account" name="accountNumber" className="form-input" value={info.accountNumber} onChange={handleChange} />
+                    </div>
+                </div>
+             </div>
+            <div className="flex justify-end pt-4">
+                <button type="submit" className="w-full sm:w-auto px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">Save Profile</button>
+            </div>
+        </form>
+    );
+}
+
+function ClientEditor({ client, onSave, onBack, services, pdfTemplates, isModal=false }) {
+    const [fields, setFields] = React.useState({
+        name: client?.name || '',
+        email: client?.email || '',
+        phone: client?.phone || '',
+        notes: client?.notes || '',
+        pdfTemplateId: client?.pdfTemplateId || -1, // -1 for global default
+    });
+    const [customFields, setCustomFields] = React.useState<CustomField[]>(client?.customFields || []);
+    const [schedule, setSchedule] = React.useState<ScheduleItem[]>(client?.schedule || []);
+
+    const handleFieldChange = (e) => {
+        const {name, value} = e.target;
+        setFields(prev => ({ ...prev, [name]: name === 'pdfTemplateId' ? Number(value) : value }));
+    };
+
+    const handleAddCustomField = () => {
+        setCustomFields([...customFields, { key: '', value: '' }]);
+    };
+
+    const handleCustomFieldChange = (index, fieldName, value) => {
+        const newCustomFields = [...customFields];
+        newCustomFields[index][fieldName] = value;
+        setCustomFields(newCustomFields);
+    };
+    
+    const handleAddScheduleItem = () => {
+        setSchedule([...schedule, { id: Date.now(), day: 'Monday', startTime: '09:00', endTime: '10:00', service: ''}])
+    }
+
+    const handleScheduleChange = (index, fieldName, value) => {
+        const newSchedule = [...schedule];
+        newSchedule[index][fieldName] = value;
+        setSchedule(newSchedule);
+    }
+    
+    const handleRemoveScheduleItem = (id) => {
+        setSchedule(schedule.filter(item => item.id !== id));
+    }
+
+    const handleRemoveCustomField = (index) => {
+        setCustomFields(customFields.filter((_, i) => i !== index));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave({
+            ...client,
+            ...fields,
+            pdfTemplateId: fields.pdfTemplateId === -1 ? undefined : fields.pdfTemplateId,
+            customFields: customFields.filter(f => f.key && f.value),
+            schedule: schedule.filter(s => s.service),
+        });
+        if (onBack) onBack();
+    };
+    
+    const EditorWrapper = isModal ? 'div' : 'div';
+    const wrapperProps = isModal ? {} : { className: "bg-white p-6 rounded-xl shadow-lg max-w-2xl mx-auto" };
+
+    return (
+        <EditorWrapper {...wrapperProps}>
+             {!isModal && (
+                <div className="flex items-center gap-4 mb-6">
+                    <button onClick={onBack} className="text-slate-500 hover:text-slate-900"><ArrowLeft size={20}/></button>
+                    <h2 className="text-2xl font-bold text-slate-800">{client ? 'Edit Client' : 'New Client'}</h2>
+                </div>
+             )}
+            <form className="space-y-4 divide-y divide-slate-200" onSubmit={handleSubmit}>
+                <div className="pt-4 space-y-4">
+                    <h3 className="font-semibold text-slate-700">Contact Information</h3>
+                    <div>
+                        <label className="form-label" htmlFor="client-name">Client Name</label>
+                        <input id="client-name" name="name" className="form-input" value={fields.name} onChange={handleFieldChange} placeholder="Client Name" required/>
+                    </div>
+                    <div>
+                        <label className="form-label" htmlFor="client-email">Email</label>
+                        <input id="client-email" name="email" className="form-input" value={fields.email} onChange={handleFieldChange} placeholder="Email" type="email"/>
+                    </div>
+                    <div>
+                        <label className="form-label" htmlFor="client-phone">Phone</label>
+                        <input id="client-phone" name="phone" className="form-input" value={fields.phone} onChange={handleFieldChange} placeholder="Phone"/>
+                    </div>
+                     <div>
+                        <label className="form-label" htmlFor="client-notes">Notes</label>
+                        <textarea id="client-notes" name="notes" className="form-input" value={fields.notes} onChange={handleFieldChange} placeholder="Notes..."></textarea>
+                    </div>
+                </div>
+
+                <div className="pt-4 space-y-3">
+                    <h3 className="font-semibold text-slate-700">Invoice Template</h3>
+                     <div>
+                        <label className="form-label" htmlFor="pdfTemplateId">PDF Template</label>
+                        <select id="pdfTemplateId" name="pdfTemplateId" className="form-input" value={fields.pdfTemplateId} onChange={handleFieldChange}>
+                           <option value={-1}>Default Global Template</option>
+                           {pdfTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                    </div>
+                </div>
+
+                <div className="pt-4 space-y-3">
+                    <h3 className="font-semibold text-slate-700">Weekly Schedule</h3>
+                    {schedule.map((item, index) => (
+                        <div key={item.id} className="grid grid-cols-12 gap-2 items-end">
+                             <div className="col-span-3">
+                                <label className="form-label">Day</label>
+                                <select className="form-input" value={item.day} onChange={(e) => handleScheduleChange(index, 'day', e.target.value)}>
+                                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(day => <option key={day} value={day}>{day}</option>)}
+                                </select>
+                             </div>
+                              <div className="col-span-2">
+                                <label className="form-label">Start</label>
+                                <input type="time" className="form-input" value={item.startTime} onChange={(e) => handleScheduleChange(index, 'startTime', e.target.value)} />
+                             </div>
+                              <div className="col-span-2">
+                                <label className="form-label">End</label>
+                                <input type="time" className="form-input" value={item.endTime} onChange={(e) => handleScheduleChange(index, 'endTime', e.target.value)} />
+                             </div>
+                             <div className="col-span-4">
+                                <label className="form-label">Service</label>
+                                <select className="form-input" value={item.service} onChange={(e) => handleScheduleChange(index, 'service', e.target.value)}>
+                                    <option value="">Select...</option>
+                                    {services.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                                </select>
+                             </div>
+                              <div className="col-span-1 text-center">
+                                <button type="button" onClick={() => handleRemoveScheduleItem(item.id)} className="p-2 text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>
+                            </div>
+                        </div>
+                    ))}
+                    <button type="button" onClick={handleAddScheduleItem}
+                      className="text-indigo-600 hover:text-indigo-800 text-sm font-semibold flex items-center gap-1">
+                      <Plus size={16}/> Add Schedule
+                    </button>
+                </div>
+                
+                <div className="pt-4 space-y-3">
+                    <h3 className="font-semibold text-slate-700">Additional Information</h3>
+                    {customFields.map((field, index) => (
+                        <div key={index} className="grid grid-cols-12 gap-2 items-center">
+                            <div className="col-span-5">
+                                <label className="form-label sr-only">Field Name</label>
+                                <input 
+                                    className="form-input" 
+                                    value={field.key} 
+                                    onChange={(e) => handleCustomFieldChange(index, 'key', e.target.value)} 
+                                    placeholder="Field Name (e.g. Address)"
+                                />
+                            </div>
+                            <div className="col-span-6">
+                                <label className="form-label sr-only">Field Value</label>
+                                <input 
+                                    className="form-input" 
+                                    value={field.value} 
+                                    onChange={(e) => handleCustomFieldChange(index, 'value', e.target.value)}
+                                    placeholder="Value"
+                                />
+                            </div>
+                             <div className="col-span-1 text-center">
+                                <button type="button" onClick={() => handleRemoveCustomField(index)} className="p-2 text-slate-400 hover:text-red-500"><Trash2 size={16}/></button>
+                            </div>
+                        </div>
+                    ))}
+                     <button type="button" onClick={handleAddCustomField}
+                      className="text-indigo-600 hover:text-indigo-800 text-sm font-semibold flex items-center gap-1">
+                      <Plus size={16}/> Add Field
+                    </button>
+                </div>
+
+                <div className="flex justify-end pt-4">
+                    <button type="submit" className="w-full sm:w-auto px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">Save Client</button>
+                </div>
+            </form>
+        </EditorWrapper>
+    );
+}
+
+function ServiceEditor({ service, onSave, onBack, isModal = false }) {
+     const [currentService, setCurrentService] = React.useState(service || { name: '', rate: '', unit: ''});
+
+     const handleChange = (e) => {
+         const { name, value } = e.target;
+         setCurrentService(prev => ({...prev, [name]: value}));
+     }
+
+     const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave(currentService);
+        if(onBack) onBack();
+    };
+
+    const EditorWrapper = isModal ? 'div' : 'div';
+    const wrapperProps = isModal ? {} : { className: "bg-white p-6 rounded-xl shadow-lg max-w-2xl mx-auto" };
+
+    return (
+        <EditorWrapper {...wrapperProps}>
+             {!isModal && (
+                 <div className="flex items-center gap-4 mb-6">
+                    <button onClick={onBack} className="text-slate-500 hover:text-slate-900"><ArrowLeft size={20}/></button>
+                    <h2 className="text-2xl font-bold text-slate-800">{service ? 'Edit Service' : 'New Service'}</h2>
+                </div>
+             )}
+            <form className="space-y-4" onSubmit={handleSubmit}>
+                <div>
+                    <label className="form-label" htmlFor="service-name">Service Name</label>
+                    <input id="service-name" name="name" className="form-input" value={currentService.name} onChange={handleChange} placeholder="Service Name" required/>
+                </div>
+                <div>
+                    <label className="form-label" htmlFor="service-rate">Rate ($)</label>
+                    <input id="service-rate" name="rate" className="form-input" value={currentService.rate} onChange={handleChange} placeholder="50.00" type="number" step="0.01" required/>
+                </div>
+                <div>
+                    <label className="form-label" htmlFor="service-unit">Unit</label>
+                    <input id="service-unit" name="unit" className="form-input" value={currentService.unit} onChange={handleChange} placeholder="e.g. hrs, item"/>
+                </div>
+                <div className="flex justify-end pt-4">
+                    <button type="submit" className="w-full sm:w-auto px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">Save Service</button>
+                </div>
+            </form>
+        </EditorWrapper>
+    );
+}
+
+function RecurringExpenseEditor({ item, onSave, onBack }) {
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        onSave({
+            name: formData.get('name') as string,
+            category: formData.get('category') as string,
+            price: parseFloat(formData.get('price') as string),
+        });
+        if(onBack) onBack();
+    };
+
+    return (
+        <form className="space-y-4" onSubmit={handleSubmit}>
+            <div>
+                <label className="form-label" htmlFor="re-name">Item Name</label>
+                <input id="re-name" name="name" className="form-input" defaultValue={item?.name} placeholder="e.g. Travel (per km)" required />
+            </div>
+            <div>
+                <label className="form-label" htmlFor="re-category">Category</label>
+                <select id="re-category" name="category" className="form-input" defaultValue={item?.category || ""} required>
+                    <option value="" disabled>Select Category...</option>
+                    <option>Travel</option>
+                    <option>Materials</option>
+                    <option>Equipment</option>
+                    <option>Insurance</option>
+                    <option>Other</option>
+                </select>
+            </div>
+            <div>
+                <label className="form-label" htmlFor="re-price">Price ($)</label>
+                <input id="re-price" name="price" className="form-input" defaultValue={item?.price} placeholder="0.85" type="number" step="0.01" required />
+            </div>
+            <div className="flex justify-end pt-4">
+                <button type="submit" className="w-full sm:w-auto px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">Save Item</button>
+            </div>
+        </form>
+    );
+}
+
+function ExpenseEditor({ expense, onSave, onBack, catalogue }) {
+    const [description, setDescription] = React.useState(expense?.description || "");
+    const [category, setCategory] = React.useState(expense?.category || "");
+    const [amount, setAmount] = React.useState(expense?.amount || "");
+    const [fileName, setFileName] = React.useState(expense?.receipt?.name || "");
+
+    const handleCatalogueSelect = (e) => {
+        const selectedId = e.target.value;
+        if (!selectedId) return;
+        const item = catalogue.find(c => c.id === parseInt(selectedId));
+        if (item) {
+            setDescription(item.name);
+            setCategory(item.category);
+            setAmount(item.price);
+        }
+    }
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.currentTarget);
+        const receiptFile = formData.get('receipt') as File;
+        onSave({
+            date: formData.get('date') as string,
+            description,
+            category,
+            amount: parseFloat(amount as string),
+            receipt: receiptFile.size > 0 ? receiptFile : expense?.receipt
+        });
+        onBack();
+    };
+    
+    return (
+        <div className="bg-white p-6 rounded-xl shadow-lg max-w-2xl mx-auto">
+            <div className="flex items-center gap-4 mb-6">
+                <button onClick={onBack} className="text-slate-500 hover:text-slate-900"><ArrowLeft size={20}/></button>
+                <h2 className="text-2xl font-bold text-slate-800">{expense ? 'Edit Expense' : 'New Expense'}</h2>
+            </div>
+            <form className="space-y-4" onSubmit={handleSubmit}>
+                 <div>
+                    <label className="form-label" htmlFor="catalogue-select">Select from Catalogue (Optional)</label>
+                    <select id="catalogue-select" className="form-input" onChange={handleCatalogueSelect}>
+                        <option value="">-- Or enter manually --</option>
+                        {catalogue.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    </select>
+                </div>
+                <div className="h-px bg-slate-200"></div>
+                <div>
+                    <label className="form-label" htmlFor="exp-date">Date</label>
+                    <input id="exp-date" name="date" type="date" className="form-input" defaultValue={expense?.date || new Date().toISOString().split("T")[0]} required/>
+                </div>
+                <div>
+                    <label className="form-label" htmlFor="exp-desc">Description</label>
+                    <input id="exp-desc" name="description" className="form-input" value={description} onChange={e => setDescription(e.target.value)} placeholder="Expense Description" required/>
+                </div>
+                <div>
+                    <label className="form-label" htmlFor="exp-cat">Category</label>
+                    <select id="exp-cat" name="category" className="form-input" value={category} onChange={e => setCategory(e.target.value)} required>
+                        <option value="">Select Category...</option>
+                        <option>Travel</option>
+                        <option>Materials</option>
+                        <option>Equipment</option>
+                        <option>Insurance</option>
+                        <option>Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label className="form-label" htmlFor="exp-amount">Amount</label>
+                    <input id="exp-amount" name="amount" className="form-input" value={amount} onChange={e => setAmount(e.target.value as any)} placeholder="Amount ($)" type="number" step="0.01" required/>
+                </div>
+                <div>
+                    <label className="form-label" htmlFor="exp-receipt">Receipt</label>
+                    <label htmlFor="exp-receipt" className="form-input flex items-center justify-between text-slate-500 cursor-pointer">
+                        <span className="flex items-center gap-2">
+                          <Upload size={16} />
+                          <span>{fileName || "Upload File"}</span>
+                        </span>
+                        {fileName && <button type="button" onClick={() => setFileName("")} className="text-red-500 hover:text-red-700"><X size={16}/></button>}
+                    </label>
+                    <input id="exp-receipt" name="receipt" type="file" className="sr-only" onChange={(e) => setFileName(e.target.files?.[0]?.name || "")} />
+                </div>
+                 <div className="flex justify-end pt-4">
+                    <button type="submit" className="w-full sm:w-auto px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">Save Expense</button>
+                </div>
+            </form>
+        </div>
+    );
+}
+
+function InvoicePreviewUI({ invoiceData, workerInfo, client, totalAmount, template }) {
+    if (!template) {
+        return <div className="p-8 bg-white shadow-lg rounded-sm flex items-center justify-center h-full"><p className="text-slate-500">No template selected.</p></div>
+    }
+
+    const fontClass = {
+        Helvetica: 'font-sans',
+        Times: 'font-serif',
+        Courier: 'font-mono'
+    }[template.font];
+
+    const notesHtml = { __html: invoiceData.note?.replace(/\n/g, '<br/>') || '' };
+
+    return (
+        <div className={`p-8 bg-white shadow-lg rounded-sm h-full overflow-y-auto aspect-[1/1.414] mx-auto ${fontClass}`}>
+             <header className="flex justify-between items-start mb-12 border-b-2 pb-4" style={{borderColor: template.accentColor}}>
+                 {template.logo ? 
+                    <img src={template.logo} alt="logo" className="h-16" onError={(e) => e.currentTarget.style.display='none'} /> : <div></div>}
+                 <div className="text-right">
+                    <h2 className="text-4xl font-bold uppercase" style={{color: template.accentColor}}>{invoiceData.title || 'Invoice'}</h2>
+                    <p className="text-slate-500 text-sm">Invoice #{invoiceData.invoiceNumber}</p>
+                    <p className="text-slate-500 text-sm">Date: {new Date(invoiceData.invoiceDate).toLocaleDateString()}</p>
+                </div>
+            </header>
+            <div className="grid grid-cols-2 gap-8 mb-12">
+                <div>
+                    <h3 className="font-semibold text-slate-600 mb-1">From:</h3>
+                    <p className="font-bold">{workerInfo.tradingName || workerInfo.name}</p>
+                    <p>{workerInfo.address}</p>
+                    <p>ABN: {workerInfo.abn}</p>
+                </div>
+                 <div className="text-right">
+                    <h3 className="font-semibold text-slate-600 mb-1">To:</h3>
+                    <p className="font-bold">{client?.name || 'N/A'}</p>
+                    <p>{client?.email}</p>
+                </div>
+            </div>
+            
+            <table className="w-full text-left text-sm">
+                <thead style={{backgroundColor: template.accentColor}} className="text-white">
+                    <tr>
+                        <th className="p-3 font-bold">Description</th>
+                        <th className="p-3 text-right font-bold">Qty</th>
+                        <th className="p-3 text-right font-bold">Rate</th>
+                        <th className="p-3 text-right font-bold">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {invoiceData.items.map((item, i) => {
+                         const amount = Number(item.qty || "0") * Number(item.rate || "0");
+                        return (
+                        <tr key={i} className="border-b">
+                            <td className="p-3">{item.custom || item.service || item.description}</td>
+                            <td className="p-3 text-right">{item.qty}</td>
+                            <td className="p-3 text-right">${Number(item.rate || "0").toFixed(2)}</td>
+                            <td className="p-3 text-right">${amount.toFixed(2)}</td>
+                        </tr>
+                    )})}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colSpan={3} className="p-3 text-right font-bold text-lg">Total</td>
+                        <td className="p-3 text-right font-bold text-lg">${totalAmount}</td>
+                    </tr>
+                </tfoot>
+            </table>
+            
+             <footer className="mt-12 pt-6 border-t">
+                 {invoiceData.note && <div className="mb-6">
+                     <h3 className="font-semibold text-slate-600 mb-1">Notes:</h3>
+                     <p className="text-sm text-slate-500" dangerouslySetInnerHTML={notesHtml}></p>
+                </div>}
+                 <div>
+                     <h3 className="font-semibold text-slate-600 mb-1">Payment Details:</h3>
+                     <p className="text-sm text-slate-500">Bank: {workerInfo.bankName} | BSB: {workerInfo.bsb} | Account: {workerInfo.accountNumber}</p>
+                </div>
+             </footer>
+        </div>
+    )
+}
+
+function generatePdfPage(doc, data, template: PdfTemplate) {
+    const { workerInfo, client, totalAmount } = data;
+
+    const addImage = (url, x, y, w, h) => {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.crossOrigin = 'Anonymous';
+            img.onload = function() {
+                try {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = this.naturalWidth;
+                    canvas.height = this.naturalHeight;
+                    const ctx = canvas.getContext('2d');
+                    if (ctx) {
+                        ctx.drawImage(this, 0, 0);
+                        const dataUrl = canvas.toDataURL('image/png');
+                        doc.addImage(dataUrl, 'PNG', x, y, w, h);
+                    }
+                    resolve(true);
+                } catch (e) {
+                    console.error("Error processing image for PDF:", e);
+                    resolve(false);
+                }
+            };
+            img.onerror = () => {
+                console.error("Failed to load image for PDF");
+                resolve(false);
+            };
+            img.src = url;
+        });
+    }
+
+    const generate = async () => {
+        const pageFont = template.font.toLowerCase();
+        doc.setFont(pageFont, 'normal');
+
+        if (template.logo) {
+            await addImage(template.logo, 15, 15, 30, 15);
+        }
+    
+        doc.setFontSize(22);
+        doc.setFont(pageFont, "bold");
+        doc.text(data.title || "Invoice", 200, 25, { align: "right" });
+        doc.setFontSize(10);
+        doc.setFont(pageFont, "normal");
+        
+        doc.text(`Invoice #: ${data.invoiceNumber || data.id}`, 200, 32, { align: 'right' });
+        doc.text(`Date: ${new Date(data.invoiceDate || data.date).toLocaleDateString()}`, 200, 37, { align: 'right' });
+        
+        doc.text(workerInfo.tradingName || workerInfo.name, 15, 40);
+        doc.text(workerInfo.address, 15, 45);
+        doc.text(`ABN: ${workerInfo.abn}`, 15, 50);
+
+        doc.text("Bill To:", 200, 50, { align: "right" });
+        doc.setFont(pageFont, "bold");
+        doc.text(client?.name || "N/A", 200, 55, { align: "right" });
+        doc.setFont(pageFont, "normal");
+        if (client) doc.text(client.email, 200, 60, { align: "right" });
+
+        const tableHeaders = ["Description", "Qty", "Rate", "Amount"];
+        const tableData = data.items.map(item => {
+            const desc = item.custom || item.service || item.description;
+            const amount = Number(item.qty || "0") * Number(item.rate || "0");
+            return [desc || "-", item.qty || "-", item.rate ? `$${Number(item.rate).toFixed(2)}` : "-", `$${amount.toFixed(2)}`];
+        }).filter(row => row[0] !== "-");
+        
+        let finalY = 75;
+        if (doc.autoTable) {
+            doc.autoTable({ 
+                startY: 80, 
+                head: [tableHeaders], 
+                body: tableData, 
+                theme: 'striped', 
+                headStyles: { fillColor: template.accentColor, font: pageFont, fontStyle: 'bold' },
+                bodyStyles: { font: pageFont },
+                footStyles: { font: pageFont, fontStyle: 'bold', fontSize: 12, fillColor: [241, 245, 249] },
+                foot: [['','','Total', `$${totalAmount}`]]
+            });
+            finalY = (doc as any).lastAutoTable.finalY;
+        }
+
+        if (data.note) {
+          doc.text("Notes:", 15, finalY + 15);
+          doc.text(data.note.replace(/<[^>]*>?/gm, ''), 15, finalY + 20, { maxWidth: 180 });
+        }
+        
+        const pageHeight = doc.internal.pageSize.getHeight();
+        doc.setFontSize(9);
+        doc.text("Payment Details:", 15, pageHeight - 20);
+        doc.text(`${workerInfo.bankName} | BSB: ${workerInfo.bsb} | Account: ${workerInfo.accountNumber}`, 15, pageHeight - 15);
+
+        doc.output('dataurlnewwindow');
+    };
+
+    generate();
+}
+
+
+function InvoiceBuilder({
+  onBack,
+  services,
+  clients,
+  onSave,
+  invoice,
+  scriptsLoaded,
+  workerInfo,
+  pdfTemplates
+}) {
+  const today = new Date().toISOString().split("T")[0];
+  const nextInvoiceNumber = invoice?.id || Date.now();
+
+  const [client, setClient] = React.useState(invoice?.client || "");
+  const [invoiceNumber, setInvoiceNumber] = React.useState<number>(nextInvoiceNumber);
+  const [invoiceDate, setInvoiceDate] = React.useState(invoice?.date || today);
+  const [title, setTitle] = React.useState("Tax Invoice");
+  const [note, setNote] = React.useState(invoice?.note || "");
+  
+  const [items, setItems] = React.useState(
+    invoice
+      ? invoice.items.map((it) => ({
+          service: it.description,
+          custom: !services.some(s => s.name === it.description) ? it.description : "",
+          qty: String(it.qty),
+          rate: String(it.rate),
+          unit: services.find(s => s.name === it.description)?.unit || "",
+        }))
+      : [{ service: "", custom: "", qty: "1", rate: "", unit: "" }],
+  );
+  
+  const totalAmount = React.useMemo(() => 
+    items.reduce(
+        (sum, it) => sum + Number(it.qty || "0") * Number(it.rate || "0"),0,
+    ).toFixed(2), [items]);
+  
+  const selectedClient = React.useMemo(() => clients.find(c => c.name === client), [clients, client]);
+  const activeTemplate = React.useMemo(() => 
+    pdfTemplates.find(t => t.id === selectedClient?.pdfTemplateId) || pdfTemplates.find(t => t.id === 1) || pdfTemplates[0],
+    [pdfTemplates, selectedClient]
+  );
+  
+  React.useEffect(() => {
+    if (activeTemplate && !invoice?.note) {
+        setNote(activeTemplate.notes || "Thank you for your business");
+    }
+  }, [activeTemplate, invoice]);
+
+  
+  const handleViewPdf = () => {
+    if (!scriptsLoaded || !window.jspdf || !activeTemplate) {
+        alert("PDF library or template not ready yet.");
+        return;
+    };
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const fullInvoiceData = { title, invoiceNumber, invoiceDate, items, note, client: selectedClient, workerInfo, totalAmount };
+    generatePdfPage(doc, fullInvoiceData, activeTemplate);
+  }
+
+
+  const handleSave = (e) => {
+    e.preventDefault();
+    const invoiceData: Invoice = {
+      id: invoiceNumber,
+      client,
+      date: invoiceDate,
+      items: items.map((it) => ({
+        description: it.service === "custom" ? it.custom : it.service,
+        qty: Number(it.qty || 0),
+        rate: Number(it.rate || 0),
+      })).filter(it => it.description),
+      status: invoice?.status || "draft",
+      note: note
+    };
+    onSave(invoiceData);
+    onBack();
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="bg-white p-6 rounded-xl shadow-lg space-y-6 h-fit">
+        <div className="flex items-center gap-4">
+            <button onClick={onBack} className="text-slate-500 hover:text-slate-900">
+                <ArrowLeft size={20}/>
+            </button>
+            <h2 className="text-2xl font-bold text-slate-800">
+              {invoice ? `Edit Invoice #${invoice.id}` : "Create New Invoice"}
+            </h2>
+        </div>
+        
+        <form onSubmit={handleSave} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                  <label className="form-label" htmlFor="inv-title">Invoice Title</label>
+                  <input id="inv-title" className="form-input" placeholder="Tax Invoice" value={title} onChange={(e) => setTitle(e.target.value)} />
+              </div>
+              <div>
+                  <label className="form-label" htmlFor="inv-number">Invoice Number</label>
+                  <input id="inv-number" className="form-input" placeholder={`Invoice #${nextInvoiceNumber}`} type="number" value={invoiceNumber} onChange={(e) => setInvoiceNumber(Number(e.target.value))}/>
+              </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <div>
+                <label className="form-label" htmlFor="inv-client">Client</label>
+                <select id="inv-client" className="form-input" value={client} onChange={(e) => setClient(e.target.value)} required>
+                    <option value="">Select Client...</option>
+                    {clients.map((c) => (<option key={c.id} value={c.name}>{c.name}</option>))}
+                </select>
+            </div>
+            <div>
+                <label className="form-label" htmlFor="inv-date">Invoice Date</label>
+                <input id="inv-date" className="form-input" type="date" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)}/>
+            </div>
+          </div>
+
+          <div className="border border-slate-200 rounded-lg p-4 space-y-4">
+            <h4 className="font-semibold text-slate-700">Items</h4>
+            {items.map((item, idx) => (
+              <div key={idx} className="grid grid-cols-12 gap-2 items-end relative">
+                  <div className="col-span-12 sm:col-span-5">
+                      <label className="form-label">Service</label>
+                      <select className="form-input" value={item.service}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setItems((prev) => prev.map((it, i) => {
+                              if (i !== idx) return it;
+                              const svc = services.find((s) => s.name === value);
+                              return { ...it, service: value, rate: svc?.rate || "", unit: svc?.unit || "", custom: "" };
+                          }));
+                        }}
+                      >
+                        <option value="">Select Service...</option>
+                        {services.map((s) => (<option key={s.id} value={s.name}>{s.name}</option>))}
+                        <option value="custom">Custom Item</option>
+                      </select>
+                  </div>
+                
+                {item.service === "custom" && (
+                    <div className="col-span-12 sm:col-span-5 sm:col-start-1">
+                        <label className="form-label">Custom Description</label>
+                        <input className="form-input" placeholder="e.g. Travel Costs" value={item.custom}
+                        onChange={(e) => {
+                            const value = e.target.value;
+                            setItems((prev) => prev.map((it, i) => i === idx ? { ...it, custom: value } : it));
+                        }}
+                        />
+                    </div>
+                )}
+                
+                <div className="col-span-4 sm:col-span-2">
+                    <label className="form-label">{item.unit || "Qty"}</label>
+                    <input className="form-input" type="number" value={item.qty} placeholder="1"
+                      onChange={(e) => setItems(prev => prev.map((it, i) => i === idx ? {...it, qty: e.target.value} : it))}
+                    />
+                </div>
+                <div className="col-span-5 sm:col-span-3">
+                    <label className="form-label">Rate ($)</label>
+                    <input className="form-input" type="number" value={item.rate} placeholder="50.00"
+                        onChange={(e) => setItems(prev => prev.map((it, i) => i === idx ? {...it, rate: e.target.value} : it))}
+                    />
+                </div>
+                 <div className="col-span-3 sm:col-span-1">
+                    <button type="button" onClick={() => setItems(prev => prev.filter((_, i) => i !== idx))}
+                        className="h-10 w-full flex items-center justify-center text-slate-400 hover:text-red-500 transition-colors">
+                        <Trash2 size={16}/>
+                    </button>
+                </div>
+              </div>
+            ))}
+            <button type="button" onClick={() => setItems(prev => [...prev, { service: "", custom: "", qty: "1", rate: "", unit: "" }])}
+              className="text-indigo-600 hover:text-indigo-800 text-sm font-semibold flex items-center gap-1">
+              <Plus size={16}/> Add Item
+            </button>
+          </div>
+          
+          <div>
+              <label className="form-label" htmlFor="inv-notes">Notes</label>
+              <textarea id="inv-notes" className="form-input" placeholder="e.g. Thank you for your business." value={note} onChange={(e) => setNote(e.target.value)}></textarea>
+          </div>
+          
+          <div className="flex justify-between items-center pt-4 border-t border-slate-200">
+             <div className="text-lg font-bold text-slate-800">
+                Total: ${totalAmount}
+             </div>
+             <div className="flex items-center gap-2">
+                 <button type="button" onClick={handleViewPdf} className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 font-semibold text-sm">
+                    <View size={16}/> View PDF
+                 </button>
+                 <button type="submit" className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold shadow-sm hover:shadow-md transition-all">
+                    Save Invoice
+                 </button>
+             </div>
+          </div>
+        </form>
+      </div>
+      <div className="h-[80vh] lg:h-auto bg-slate-200 p-8 rounded-lg">
+        <div className="w-full h-full bg-slate-50 sticky top-28">
+           <InvoicePreviewUI invoiceData={{title, invoiceNumber, invoiceDate, items, note}} workerInfo={workerInfo} client={selectedClient} totalAmount={totalAmount} template={activeTemplate} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function PdfTemplateBuilder({ initialTemplate, onSave, onBack, workerInfo, client }) {
+    const [template, setTemplate] = React.useState(initialTemplate || { id: Date.now(), name: 'New Template', font: 'Helvetica', accentColor: '#3B82F6', notes: '' });
+    const [logoPreview, setLogoPreview] = React.useState(initialTemplate?.logo);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setTemplate(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleLogoChange = (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64String = reader.result as string;
+                setLogoPreview(base64String);
+                setTemplate(prev => ({...prev, logo: base64String}));
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+    
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave(template);
+        onBack();
+    }
+    
+    const mockInvoiceData = {
+        title: 'INVOICE',
+        invoiceNumber: 123,
+        invoiceDate: new Date().toISOString(),
+        items: [
+            { description: 'Sample Service A', service: 'Sample Service A', custom: '', qty: '2', rate: '50.00' },
+            { description: 'Sample Item B', service: 'Sample Item B', custom: '', qty: '1', rate: '75.50' },
+        ],
+        note: template.notes
+    };
+
+    return (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="bg-white p-6 rounded-xl shadow-lg space-y-6 h-fit">
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="form-label" htmlFor="template-name">Template Name</label>
+                        <input id="template-name" name="name" value={template.name} onChange={handleChange} className="form-input" placeholder="e.g. Modern Blue" />
+                    </div>
+                    <div>
+                        <label className="form-label" htmlFor="template-font">Font</label>
+                        <select id="template-font" name="font" value={template.font} onChange={handleChange} className="form-input">
+                            <option value="Helvetica">Helvetica (Modern, Sans-Serif)</option>
+                            <option value="Times">Times New Roman (Traditional, Serif)</option>
+                            <option value="Courier">Courier (Typewriter, Monospace)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label className="form-label" htmlFor="template-color">Accent Color</label>
+                        <input id="template-color" name="accentColor" type="color" value={template.accentColor} onChange={handleChange} className="form-input h-10 p-1" />
+                    </div>
+                     <div>
+                        <label className="form-label" htmlFor="template-logo">Company Logo</label>
+                        <input id="template-logo" name="logo" type="file" accept="image/*" onChange={handleLogoChange} className="form-input"/>
+                        {logoPreview && <img src={logoPreview} alt="Logo preview" className="mt-4 h-16 border p-1 rounded-md"/>}
+                    </div>
+                    <div>
+                        <label className="form-label" htmlFor="template-notes">Default Notes / Payment Terms</label>
+                        <textarea id="template-notes" name="notes" value={template.notes} onChange={handleChange} className="form-input" rows={4} placeholder="e.g. Thank you for your business. Please pay within 14 days."></textarea>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-4 border-t">
+                        <button type="button" onClick={onBack} className="px-4 py-2 bg-slate-200 text-slate-800 rounded-lg hover:bg-slate-300 font-semibold">Cancel</button>
+                        <button type="submit" className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">Save Template</button>
+                    </div>
+                </form>
+            </div>
+            <div className="h-[80vh] lg:h-auto bg-slate-200 p-8 rounded-lg">
+                <div className="w-full h-full bg-slate-50 sticky top-28">
+                   <InvoicePreviewUI 
+                        invoiceData={mockInvoiceData} 
+                        workerInfo={workerInfo} 
+                        client={client}
+                        totalAmount={'175.50'} 
+                        template={{...template, logo: logoPreview}} 
+                    />
+                </div>
+            </div>
+        </div>
+    )
+}
+
+const getFinancialYear = (date) => {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = d.getMonth();
+    const startYear = month >= 6 ? year : year - 1;
+    return `${startYear}-${(startYear + 1).toString().slice(-2)}`;
+};
+
+// --- Tax Calculator ---
+const TaxCalculator = ({ invoices, expenses, allTimeRecords, onArchive, selectedFY, setSelectedFY }) => {
+    const financialYears = React.useMemo(() => {
+        const years = new Set<string>();
+        allTimeRecords.forEach(record => {
+            if (record && record.date) {
+                years.add(getFinancialYear(record.date))
+            }
+        });
+        return Array.from(years).sort().reverse();
+    }, [allTimeRecords]);
+    
+    const isArchivable = financialYears.length > 1 && selectedFY !== getFinancialYear(new Date());
+
+    return (
+        <div className="bg-white p-6 rounded-xl shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
+                <h3 className="text-xl font-bold text-slate-800">Tax Guide</h3>
+                <div className="flex items-center gap-2">
+                    <label htmlFor="fy-select" className="text-sm font-medium">Financial Year:</label>
+                    <select id="fy-select" value={selectedFY} onChange={e => setSelectedFY(e.target.value)} className="form-input w-32">
+                        {financialYears.map(fy => <option key={fy} value={fy}>{fy}</option>)}
+                    </select>
+                </div>
+            </div>
+
+            {isArchivable && (
+                 <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded text-amber-800 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <Archive size={20} />
+                        <p className="text-sm font-medium">
+                            The financial year has ended. Archive these records to clean up your dashboard.
+                        </p>
+                    </div>
+                    <button onClick={() => onArchive(selectedFY)} className="bg-amber-500 text-white px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-amber-600 transition-colors">Archive FY {selectedFY}</button>
+                </div>
+            )}
+           
+            <div className="text-sm text-slate-500 space-y-2">
+                <p>
+                    Tax estimation has been simplified. For detailed calculations, please consult a financial advisor or the official ATO guidelines.
+                </p>
+                <p>
+                    To prepare for your tax return, ensure all income (from paid invoices) and all work-related expenses for the selected financial year are accurately recorded.
+                </p>
+            </div>
+        </div>
+    );
+};
+
+function InvoicesTab({ invoices, expenses, onArchive, selectedFY, setSelectedFY, setEditingInvoice, setActiveView, onUpdateStatus, openSendModal, listDisplayCount }) {
+    const [searchTerm, setSearchTerm] = React.useState("");
+    const [statusFilter, setStatusFilter] = React.useState("all");
+    const [visibleCount, setVisibleCount] = React.useState(listDisplayCount);
+    const scrollContainerRef = React.useRef(null);
+
+    React.useEffect(() => {
+        setVisibleCount(listDisplayCount);
+    }, [listDisplayCount]);
+    
+    React.useEffect(() => {
+       const container = scrollContainerRef.current;
+       const handleScroll = () => {
+           if (container) {
+               const { scrollTop, scrollHeight, clientHeight } = container;
+               if (scrollTop + clientHeight >= scrollHeight - 5) { // 5px buffer
+                   setVisibleCount(prev => prev + listDisplayCount);
+               }
+           }
+       };
+       
+       if (container) {
+           container.addEventListener('scroll', handleScroll);
+       }
+       
+       return () => {
+           if (container) {
+               container.removeEventListener('scroll', handleScroll);
+           }
+       }
+    }, [listDisplayCount]);
+
+    const filteredInvoices = React.useMemo(() => {
+        return invoices
+            .filter(inv => {
+                if (statusFilter !== 'all' && inv.status !== statusFilter) {
+                    return false;
+                }
+                if (searchTerm === "") {
+                    return true;
+                }
+                const search = searchTerm.toLowerCase();
+                return (
+                    inv.client.toLowerCase().includes(search) ||
+                    String(inv.id).includes(search) ||
+                    inv.items.some(it => it.description.toLowerCase().includes(search))
+                );
+            })
+            .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [invoices, searchTerm, statusFilter]);
+    
+    return (
+        <div className="space-y-8">
+            <TaxCalculator 
+                invoices={invoices.filter(i => i.status === 'sent' || i.status === 'paid')} 
+                expenses={expenses}
+                allTimeRecords={[...invoices, ...expenses]}
+                onArchive={onArchive}
+                selectedFY={selectedFY}
+                setSelectedFY={setSelectedFY}
+            />
+            <div className="bg-white p-6 rounded-xl shadow-sm space-y-4">
+              <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
+                  <div>
+                      <h2 className="text-2xl font-bold text-slate-800">Invoices</h2>
+                      <p className="text-sm text-slate-500">Manage all your draft and sent invoices.</p>
+                  </div>
+                  <div className="flex gap-2">
+                     <button onClick={() => { setEditingInvoice(undefined); setActiveView('editor'); }}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold shadow-sm flex items-center gap-2 whitespace-nowrap">
+                        <Plus size={16}/> New Invoice
+                      </button>
+                      <button onClick={openSendModal}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold shadow-sm flex items-center gap-2 whitespace-nowrap">
+                        <Send size={16}/> Send Invoices
+                      </button>
+                  </div>
+              </div>
+
+              <div className="flex flex-col md:flex-row gap-4">
+                  <div className="relative flex-grow">
+                      <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input 
+                        type="text"
+                        placeholder="Search by client, invoice #, service..."
+                        className="form-input pl-10"
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                      />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Filter size={16} className="text-slate-500" />
+                    <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="form-input">
+                        <option value="all">All Statuses</option>
+                        <option value="draft">Draft</option>
+                        <option value="sent">Sent</option>
+                        <option value="paid">Paid</option>
+                    </select>
+                  </div>
+              </div>
+
+              <div ref={scrollContainerRef} className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                  {filteredInvoices.slice(0, visibleCount).map((inv) => (
+                      <div key={inv.id} className="border border-slate-200 rounded-lg p-4 flex justify-between items-center hover:bg-slate-50 transition-colors">
+                          <div className="flex-1">
+                             <p className="font-bold text-slate-800">Invoice #{inv.id}</p>
+                             <p className="text-sm text-slate-600">{inv.client}</p>
+                             <p className="text-xs text-slate-400">{new Date(inv.date).toLocaleDateString()}</p>
+                          </div>
+                          <div className="flex items-center gap-4">
+                             <InvoiceStatusDropdown invoice={inv} onUpdateStatus={onUpdateStatus} />
+                             <p className="font-bold text-slate-800 text-lg w-24 text-right">${inv.items.reduce((s, it) => s + it.qty * it.rate, 0).toFixed(2)}</p>
+                             <button disabled={inv.status === 'paid'} className="p-2 text-slate-500 hover:text-indigo-600 disabled:text-slate-300 disabled:cursor-not-allowed" onClick={() => { setEditingInvoice(inv); setActiveView('editor'); }}>
+                                  <Edit size={16}/>
+                             </button>
+                         </div>
+                      </div>
+                  ))}
+                   {visibleCount >= filteredInvoices.length && filteredInvoices.length > listDisplayCount && <p className="text-center text-slate-500 py-4">End of list.</p>}
+              </div>
+            </div>
+        </div>
+    )
+}
+
+function InvoiceStatusDropdown({ invoice, onUpdateStatus }) {
+    const [isOpen, setIsOpen] = React.useState(false);
+    const dropdownRef = React.useRef(null);
+    const statuses = [
+        { key: 'draft', label: 'Draft', color: 'bg-amber-100 text-amber-800' },
+        { key: 'sent', label: 'Sent', color: 'bg-blue-100 text-blue-800' },
+        { key: 'paid', label: 'Paid', color: 'bg-green-100 text-green-800' },
+    ];
+    const currentStatus = statuses.find(s => s.key === invoice.status) || statuses[0];
+    
+    React.useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    return (
+        <div className="relative" ref={dropdownRef}>
+            <button onClick={() => setIsOpen(!isOpen)} className={`px-2.5 py-1 text-xs font-semibold rounded-full flex items-center gap-1 ${currentStatus.color}`}>
+                {currentStatus.label}
+                <ChevronDown size={14} />
+            </button>
+            {isOpen && (
+                <div className="absolute right-0 mt-2 w-32 bg-white rounded-md shadow-lg z-10 border">
+                    {statuses.map(status => (
+                        <button 
+                            key={status.key}
+                            onClick={() => { onUpdateStatus(invoice.id, status.key); setIsOpen(false); }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                        >
+                           {status.label}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
+function CollapsibleUpcomingShifts({ clientName, shifts }) {
+    const [isOpen, setIsOpen] = React.useState(true);
+
+    return (
+         <div>
+            <button onClick={() => setIsOpen(!isOpen)} className="w-full text-left font-bold text-slate-700 mb-2 border-b pb-1 flex justify-between items-center">
+                <span>{clientName}</span>
+                 <ChevronDown size={16} className={`transform transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {isOpen && (
+                <div className="space-y-3 pl-2">
+                    {shifts.map(shift => (
+                        <div key={shift.id} className="border-l-4 border-indigo-500 bg-slate-50 p-3 rounded-r-lg">
+                            <p className="font-semibold">{shift.day} at {shift.startTime} - {shift.endTime}</p>
+                            <p className="text-sm text-slate-600">{shift.service}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    )
+}
+
+function PastShiftsView({ shifts, clients, setViewingShift, setActiveView, listDisplayCount }) {
+    const [searchTerm, setSearchTerm] = React.useState('');
+    const [clientFilter, setClientFilter] = React.useState('all');
+    const [visibleCount, setVisibleCount] = React.useState(listDisplayCount);
+    const scrollContainerRef = React.useRef(null);
+
+    React.useEffect(() => {
+        setVisibleCount(listDisplayCount)
+    }, [listDisplayCount]);
+
+    React.useEffect(() => {
+        const container = scrollContainerRef.current;
+        const handleScroll = () => {
+            if (container) {
+                const { scrollTop, scrollHeight, clientHeight } = container;
+                if (scrollTop + clientHeight >= scrollHeight - 5) {
+                    setVisibleCount(prev => prev + listDisplayCount);
+                }
+            }
+        };
+
+        if (container) container.addEventListener('scroll', handleScroll);
+        return () => {
+            if (container) container.removeEventListener('scroll', handleScroll);
+        }
+    }, [listDisplayCount]);
+    
+    const filteredShifts = React.useMemo(() => {
+        return shifts
+            .filter(shift => {
+                if (clientFilter !== 'all' && shift.client !== clientFilter) {
+                    return false;
+                }
+                if (!searchTerm) return true;
+                const search = searchTerm.toLowerCase();
+                return shift.service.toLowerCase().includes(search) || shift.notes.toLowerCase().includes(search);
+            })
+            .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [shifts, searchTerm, clientFilter]);
+
+    return (
+        <div className="bg-white p-6 rounded-xl shadow-sm">
+            <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-4">
+                <h2 className="text-2xl font-bold text-slate-800">Past Shift Logs</h2>
+            </div>
+             <div className="flex flex-col md:flex-row gap-4 mb-4">
+              <div className="relative flex-grow">
+                  <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input 
+                    type="text"
+                    placeholder="Search by service, notes..."
+                    className="form-input pl-10"
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                  />
+              </div>
+              <div className="flex items-center gap-2">
+                <Filter size={16} className="text-slate-500" />
+                <select value={clientFilter} onChange={e => setClientFilter(e.target.value)} className="form-input">
+                    <option value="all">All Clients</option>
+                    {clients.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                </select>
+              </div>
+          </div>
+            <div ref={scrollContainerRef} className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                 {filteredShifts.length > 0 ? (
+                    filteredShifts.slice(0, visibleCount).map(shift => (
+                         <button key={shift.id} onClick={() => { setViewingShift(shift); setActiveView('details'); }} className="w-full text-left border border-slate-200 p-4 rounded-lg hover:shadow-md transition-shadow">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <p className="font-semibold">{shift.service} <span className="text-slate-500 font-normal">for</span> {shift.client}</p>
+                                    <p className="text-sm text-slate-500">{new Date(shift.date).toLocaleDateString('en-AU', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} from {shift.startTime} to {shift.endTime}</p>
+                                    {shift.notes && <p className="text-xs mt-2 text-slate-600 bg-slate-100 p-2 rounded max-w-md truncate">{shift.notes}</p>}
+                                </div>
+                                <ChevronDown size={16} className="transform -rotate-90 text-slate-400"/>
+                            </div>
+                        </button>
+                    ))
+                ) : <p className="text-slate-500 text-center py-4">No past shifts match your filters.</p>}
+                 {visibleCount >= filteredShifts.length && filteredShifts.length > listDisplayCount && <p className="text-center text-slate-500 py-4">End of list.</p>}
+            </div>
+        </div>
+    );
+}
+
+
+function ShiftsTab({ shifts, clients, setViewingShift, setActiveView, isWidget = false, listDisplayCount }) {
+    const upcomingShifts = clients.flatMap(client => 
+        (client.schedule || []).map(s => ({...s, clientName: client.name}))
+    );
+    const groupedUpcoming = upcomingShifts.reduce((acc, shift) => {
+        acc[shift.clientName] = acc[shift.clientName] || [];
+        acc[shift.clientName].push(shift);
+        return acc;
+    }, {});
+
+    if (isWidget) {
+        return (
+             <div>
+                <h2 className="text-xl font-bold text-slate-800 mb-4">Upcoming Shifts</h2>
+                 {Object.keys(groupedUpcoming).length > 0 ? (
+                    <div className="space-y-4 max-h-[26rem] overflow-y-auto pr-2">
+                    {Object.entries(groupedUpcoming).map(([clientName, clientShifts]) => (
+                        <CollapsibleUpcomingShifts
+                            key={clientName}
+                            clientName={clientName}
+                            shifts={clientShifts as ScheduleItem[]}
+                        />
+                    ))}
+                    </div>
+                ) : <p className="text-slate-500">No upcoming shifts scheduled.</p>}
+            </div>
+        )
+    }
+
+    return (
+        <div className="space-y-8">
+            <div className="bg-white p-6 rounded-xl shadow-sm">
+                <h2 className="text-2xl font-bold text-slate-800 mb-4">Upcoming Shifts</h2>
+                {Object.keys(groupedUpcoming).length > 0 ? (
+                    <div className="space-y-4">
+                    {Object.entries(groupedUpcoming).map(([clientName, clientShifts]) => (
+                        <CollapsibleUpcomingShifts
+                            key={clientName}
+                            clientName={clientName}
+                            shifts={clientShifts as ScheduleItem[]}
+                        />
+                    ))}
+                    </div>
+                ) : <p className="text-slate-500">No upcoming shifts scheduled in client profiles.</p>}
+            </div>
+            <PastShiftsView
+                shifts={shifts}
+                clients={clients}
+                setViewingShift={setViewingShift}
+                setActiveView={setActiveView}
+                listDisplayCount={listDisplayCount}
+            />
+        </div>
+    );
+}
+
+function ProfileDropdown({ workerInfo, onEditProfile, onEditTemplates }) {
+    const [isOpen, setIsOpen] = React.useState(false);
+    const dropdownRef = React.useRef(null);
+
+    React.useEffect(() => {
+        function handleClickOutside(event) {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    return (
+        <div className="relative" ref={dropdownRef}>
+            <span className="text-sm font-medium text-slate-700">{workerInfo.name}</span>
+            <button onClick={() => setIsOpen(!isOpen)} className="p-2 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 ml-2">
+                <ChevronDown size={16} />
+            </button>
+            {isOpen && (
+                <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border z-20">
+                    <button onClick={() => { onEditProfile(); setIsOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2">
+                        <User size={16}/> Edit Profile
+                    </button>
+                     <button onClick={() => { onEditTemplates(); setIsOpen(false); }} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2">
+                        <Palette size={16}/> PDF Templates
+                    </button>
+                     <button className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2">
+                        <LogOut size={16}/> Logout
+                    </button>
+                </div>
+            )}
+        </div>
+    )
+}
+
+function SendInvoicesModal({ isOpen, onClose, draftInvoices, onSend, onDownloadBatch, workerInfo }) {
+    const [selectedIds, setSelectedIds] = React.useState<number[]>([]);
+
+    React.useEffect(() => {
+        if (isOpen) {
+            setSelectedIds(draftInvoices.map(inv => inv.id));
+        }
+    }, [isOpen, draftInvoices]);
+
+    const handleToggle = (id: number) => {
+        setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
+    };
+    
+    const handleToggleAll = () => {
+        if (selectedIds.length === draftInvoices.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(draftInvoices.map(inv => inv.id));
+        }
+    };
+    
+    const handleSend = () => {
+        onSend(selectedIds);
+        onClose();
+    };
+
+    const handleDownload = () => {
+        onDownloadBatch(selectedIds);
+        onClose();
+    };
+    
+    const totalAmount = React.useMemo(() => {
+        return draftInvoices
+            .filter(inv => selectedIds.includes(inv.id))
+            .reduce((sum, inv) => sum + inv.items.reduce((itemSum, item) => itemSum + item.qty * item.rate, 0), 0)
+            .toFixed(2);
+    }, [selectedIds, draftInvoices]);
+
+    return (
+        <AppModal isOpen={isOpen} onClose={onClose} title={`Process ${draftInvoices.length} Draft Invoices`} maxWidth="max-w-2xl">
+            <div className="space-y-4">
+                <div className="bg-slate-50 p-3 rounded-lg flex items-center gap-4 justify-between">
+                    <div className="flex items-center gap-3">
+                        <input 
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            checked={selectedIds.length === draftInvoices.length && draftInvoices.length > 0}
+                            onChange={handleToggleAll}
+                        />
+                        <label className="font-medium text-slate-700">{selectedIds.length} of {draftInvoices.length} selected</label>
+                    </div>
+                    <p className="text-sm text-slate-500 font-semibold">Total: ${totalAmount}</p>
+                </div>
+
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                    {draftInvoices.map(inv => (
+                         <div key={inv.id} className="flex items-center gap-3 border p-3 rounded-lg">
+                            <input 
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                checked={selectedIds.includes(inv.id)}
+                                onChange={() => handleToggle(inv.id)}
+                             />
+                            <div className="flex-1">
+                                <p className="font-semibold text-slate-800">Invoice #{inv.id} - {inv.client}</p>
+                                <p className="text-sm text-slate-500">
+                                    {new Date(inv.date).toLocaleDateString()} &middot; ${inv.items.reduce((s, it) => s + it.qty * it.rate, 0).toFixed(2)}
+                                </p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="flex justify-end gap-4 pt-4 border-t">
+                    <button onClick={handleDownload} className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 font-semibold text-sm">
+                        <Download size={16}/> Download Batch
+                    </button>
+                    <button onClick={handleSend} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold text-sm">
+                        <Send size={16}/> Send Invoices
+                    </button>
+                </div>
+            </div>
+        </AppModal>
+    )
+}
+
+function EditOverviewModal({ isOpen, onClose, uiSettings, onSave }) {
+    const [settings, setSettings] = React.useState(uiSettings);
+
+    React.useEffect(() => {
+        setSettings(uiSettings);
+    }, [uiSettings, isOpen]);
+
+    const handleSave = () => {
+        onSave(settings);
+        onClose();
+    }
+    
+    const handleNavToggle = (key) => {
+        setSettings(prev => ({...prev, navItems: {...prev.navItems, [key]: {...prev.navItems[key], visible: !prev.navItems[key].visible}}}));
+    };
+    
+    const handleQuickActionToggle = (key) => {
+         setSettings(prev => ({...prev, quickActions: {...prev.quickActions, [key]: {...prev.quickActions[key], visible: !prev.quickActions[key].visible}}}));
+    };
+    
+    const handleWidgetToggle = (key) => {
+         setSettings(prev => ({...prev, overviewWidgets: {...prev.overviewWidgets, [key]: { ...prev.overviewWidgets[key], visible: !prev.overviewWidgets[key].visible }}}));
+    };
+
+    return (
+        <AppModal isOpen={isOpen} onClose={onClose} title="Customize UI" maxWidth="max-w-2xl">
+            <div className="space-y-6">
+                 <div>
+                    <h3 className="font-semibold text-slate-700 mb-2">Navigation Links</h3>
+                     {Object.entries(settings.navItems).map(([key, item]) => (
+                         <div key={key} className="flex items-center justify-between bg-slate-50 p-3 rounded-lg mb-2">
+                             <label className="font-medium text-slate-700">{item.label}</label>
+                             <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" checked={item.visible} onChange={() => handleNavToggle(key)} className="sr-only peer" />
+                                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-indigo-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                             </label>
+                        </div>
+                     ))}
+                </div>
+                 <div>
+                    <h3 className="font-semibold text-slate-700 mb-2">Quick Actions</h3>
+                     {Object.entries(settings.quickActions).map(([key, item]) => (
+                         <div key={key} className="flex items-center justify-between bg-slate-50 p-3 rounded-lg mb-2">
+                             <label className="font-medium text-slate-700">{item.title}</label>
+                             <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" checked={item.visible} onChange={() => handleQuickActionToggle(key)} className="sr-only peer" />
+                                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-indigo-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                             </label>
+                        </div>
+                     ))}
+                </div>
+                 <div>
+                    <h3 className="font-semibold text-slate-700 mb-2">Overview Widgets</h3>
+                     {Object.entries(settings.overviewWidgets).map(([key, value]) => (
+                         <div key={key} className="flex items-center justify-between bg-slate-50 p-3 rounded-lg mb-2">
+                             <label className="font-medium text-slate-700">{value.title}</label>
+                             <label className="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" checked={value.visible} onChange={() => handleWidgetToggle(key)} className="sr-only peer" />
+                                <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-4 peer-focus:ring-indigo-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                             </label>
+                        </div>
+                     ))}
+                </div>
+                 <div className="bg-slate-50 p-3 rounded-lg">
+                    <label htmlFor="list-count" className="form-label">Items to show per list page</label>
+                    <input type="number" id="list-count" className="form-input" value={settings.listDisplayCount} onChange={e => setSettings(p => ({...p, listDisplayCount: Number(e.target.value)}))}/>
+                 </div>
+                <div className="flex justify-end pt-4 border-t">
+                    <button onClick={handleSave} className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">Save Preferences</button>
+                </div>
+            </div>
+        </AppModal>
+    )
+}
+
+// --- Overview "Hot-Swappable" Card Component ---
+const OverviewCard = ({ title, isPinned, onPin, draggableProps, children }) => (
+    <div 
+        {...draggableProps}
+        className={`p-2 -m-2 rounded-lg transition-shadow ${!isPinned && 'cursor-move'}`}
+    >
+        <div className="bg-white rounded-xl shadow-sm p-6 relative">
+            <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-slate-800">{title}</h2>
+                <button onClick={onPin} className="text-slate-400 hover:text-indigo-600">
+                    {isPinned ? <Pin size={18} className="text-indigo-600"/> : <PinOff size={18} />}
+                </button>
+            </div>
+            {children}
+        </div>
+    </div>
+);
+
+
+// --- Main Dashboard Component ---
+export default function WorkerDashboard() {
+  const [activeTab, setActiveTab] = React.useState("overview");
+  const [activeView, setActiveView] = React.useState("list");
+  
+  // Unified modal state
+  const [modalState, setModalState] = React.useState<{isOpen: boolean, view: string | null, data: any}>({ isOpen: false, view: null, data: null });
+  
+  const [scriptsLoaded, setScriptsLoaded] = React.useState(false);
+  
+  // Data state
+  const [workerInfo, setWorkerInfo] = React.useState<WorkerInfo>(initialWorkerInfo);
+  const [services, setServices] = React.useState<Service[]>(initialServices);
+  const [clients, setClients] = React.useState<Client[]>(initialClients);
+  const [invoices, setInvoices] = React.useState<Invoice[]>(initialInvoices);
+  const [expenses, setExpenses] = React.useState<Expense[]>(initialExpenses);
+  const [recurringExpenses, setRecurringExpenses] = React.useState<RecurringExpense[]>(initialRecurringExpenses);
+  const [shifts, setShifts] = React.useState<Shift[]>(initialShifts);
+  const [pdfTemplates, setPdfTemplates] = React.useState<PdfTemplate[]>(initialPdfTemplates);
+  
+  const [archivedInvoices, setArchivedInvoices] = React.useState<Invoice[]>([]);
+  const [archivedExpenses, setArchivedExpenses] = React.useState<Expense[]>([]);
+
+  // UI Customization State
+  const [uiSettings, setUiSettings] = React.useState({
+      navItems: {
+          overview: { label: 'Overview', visible: true},
+          invoices: { label: 'Invoices', visible: true},
+          expenses: { label: 'Expenses', visible: true},
+          clients: { label: 'Clients', visible: true},
+          services: { label: 'Services', visible: true},
+          shifts: { label: 'Shifts', visible: true},
+      },
+      quickActions: {
+          newClient: { title: "New Client", icon: <User size={24} />, visible: true, onClick: () => openModal('client')},
+          logShift: { title: "Log Shift", icon: <Clock size={24} />, visible: true, onClick: () => openModal('shift') },
+          newService: { title: "New Service", icon: <ClipboardList size={24} />, visible: true, onClick: () => openModal('service') },
+          newInvoice: { title: "New Invoice", icon: <FileSignature size={24} />, visible: true, onClick: () => { setActiveTab('invoices'); setEditingInvoice(undefined); setActiveView('editor'); } },
+      },
+      overviewWidgets: { 
+          stats: { title: 'Key Metrics', component: 'Stats', visible: true, pinned: false }, 
+          quickActions: { title: 'Quick Actions', component: 'QuickActions', visible: true, pinned: false },
+          main: { title: 'Dashboard', component: 'Main', visible: true, pinned: false } 
+      },
+      listDisplayCount: 10,
+  });
+
+  const [widgetOrder, setWidgetOrder] = React.useState(['stats', 'quickActions', 'main']);
+  const [quickActionsOrder, setQuickActionsOrder] = React.useState(Object.keys(uiSettings.quickActions));
+  
+  const dragItem = React.useRef<any>(null);
+  const dragOverItem = React.useRef<any>(null);
+
+  // Editing state (used for full-page editors)
+  const [editingClient, setEditingClient] = React.useState<Client | undefined>();
+  const [editingService, setEditingService] = React.useState<Service | undefined>();
+  const [editingExpense, setEditingExpense] = React.useState<Expense | undefined>();
+  const [editingInvoice, setEditingInvoice] = React.useState<Invoice | undefined>();
+  const [viewingShift, setViewingShift] = React.useState<Shift | undefined>();
+  const [editingTemplate, setEditingTemplate] = React.useState<PdfTemplate | undefined>();
+
+
+  const [selectedFY, setSelectedFY] = React.useState(getFinancialYear(new Date()));
+
+  const openModal = (view, data = null) => setModalState({ isOpen: true, view, data });
+  const closeModal = () => {
+    setModalState({ isOpen: false, view: null, data: null });
+  }
+  const closeTemplateEditor = () => {
+      setActiveView('list');
+      setEditingTemplate(undefined);
+  }
+
+  // Script loading
+  React.useEffect(() => {
+    const loadScripts = () => {
+      if (window.jspdf && window.jspdf.autoTable) {
+        setScriptsLoaded(true); return;
+      }
+      const jspdfScript = document.createElement('script');
+      jspdfScript.id = 'jspdf-script';
+      jspdfScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      jspdfScript.onload = () => {
+        const autotableScript = document.createElement('script');
+        autotableScript.id = 'jspdf-autotable-script';
+        autotableScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
+        autotableScript.onload = () => { setScriptsLoaded(true); };
+        document.head.appendChild(autotableScript);
+      };
+      if (!document.getElementById('jspdf-script')) {
+        document.head.appendChild(jspdfScript);
+      }
+    };
+    loadScripts();
+  },[]);
+
+  const handleSaveInvoice = (inv: Invoice) => {
+    setInvoices((prev) => {
+      const existing = prev.findIndex((d) => d.id === inv.id);
+      if (existing >= 0) {
+        return prev.map(p => p.id === inv.id ? inv : p);
+      }
+      return [inv, ...prev];
+    });
+  };
+  
+  const handleUpdateInvoiceStatus = (id, status) => {
+      setInvoices(prev => prev.map(inv => inv.id === id ? {...inv, status} : inv));
+  }
+  
+  const handleSaveWorkerProfile = (info) => {
+      setWorkerInfo(prev => ({...prev, ...info}));
+  }
+
+  const handleSavePdfTemplate = (template) => {
+      setPdfTemplates(prev => {
+          const newTemplate = { ...template, id: template.id || Date.now() };
+          const existing = prev.findIndex(t => t.id === newTemplate.id);
+          if (existing > -1) {
+              return prev.map(t => t.id === newTemplate.id ? newTemplate : t);
+          }
+          return [...prev, newTemplate];
+      })
+  }
+
+  const handleSaveExpense = (exp: Omit<Expense, 'id'>) => {
+      setExpenses(prev => {
+          if (editingExpense) {
+              return prev.map(p => p.id === editingExpense.id ? {...editingExpense, ...exp} : p);
+          }
+          return [{...exp, id: Date.now()}, ...prev];
+      });
+  };
+  
+  const handleSaveRecurringExpense = (item: Omit<RecurringExpense, 'id' | 'price'> & { price: number }) => {
+      setRecurringExpenses(prev => {
+          const editingItem = modalState.view === 'recurringExpense' ? modalState.data : null;
+          if (editingItem) {
+              return prev.map(p => p.id === editingItem.id ? {...editingItem, ...item} : p);
+          }
+          return [...prev, {...item, id: Date.now()}];
+      });
+      closeModal();
+  };
+
+  const handleSaveClient = (client: Omit<Client, 'id' | 'services'>) => {
+      setClients(prev => {
+           const editingItem = modalState.view === 'client' ? modalState.data : editingClient;
+           if (editingItem) {
+              return prev.map(p => p.id === editingItem.id ? {...editingItem, ...client, services: p.services} : p);
+          }
+          return [{...client, id: Date.now(), services:[]}, ...prev];
+      });
+  }
+
+  const handleSaveService = (service: Omit<Service, 'id' | 'type'>) => {
+      setServices(prev => {
+           const editingItem = modalState.view === 'service' ? modalState.data : editingService;
+          if (editingItem) {
+              return prev.map(p => p.id === editingItem.id ? {...editingItem, ...service, type: 'service'} : p);
+          }
+          return [{...service, id: Date.now(), type: 'service'}, ...prev];
+      });
+  }
+
+  const handleLogShift = (shift: Omit<Shift, 'id'>) => {
+      setShifts(prev => [...prev, {...shift, id: Date.now() }]);
+      
+      const service = services.find(s => s.name === shift.service);
+      if (!service) return;
+
+      const startTime = new Date(`${shift.date}T${shift.startTime}`);
+      const endTime = new Date(`${shift.date}T${shift.endTime}`);
+      const duration = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+
+      if (duration <= 0) return;
+
+      const newInvoiceItem: InvoiceItem = {
+          description: shift.service,
+          qty: parseFloat(duration.toFixed(2)),
+          rate: parseFloat(service.rate)
+      };
+
+      setInvoices(prev => {
+          const shiftDate = new Date(shift.date);
+          const { invoiceFrequency, customInvoiceDays } = workerInfo;
+          let periodStartDate = new Date(shiftDate);
+          periodStartDate.setHours(0,0,0,0);
+
+          switch(invoiceFrequency) {
+            case 'Weekly':
+                const dayOfWeek = shiftDate.getDay();
+                periodStartDate.setDate(shiftDate.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)); // Monday
+                break;
+            case 'Fortnightly': {
+                const anchor = new Date('2020-01-06'); // A Monday
+                const diff = periodStartDate.getTime() - anchor.getTime();
+                const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const fortnightNumber = Math.floor(days / 14);
+                const startDay = new Date(anchor.getTime());
+                startDay.setDate(anchor.getDate() + fortnightNumber * 14);
+                periodStartDate = startDay;
+                break;
+            }
+            case 'Monthly':
+                periodStartDate.setDate(1);
+                break;
+            case 'Custom': {
+                if(!customInvoiceDays || customInvoiceDays <= 0) break;
+                const anchor = new Date('2020-01-01').getTime();
+                const shiftTime = shiftDate.getTime();
+                const daysSinceAnchor = Math.floor((shiftTime - anchor) / (1000 * 3600 * 24));
+                const periodNumber = Math.floor(daysSinceAnchor / customInvoiceDays);
+                const periodStartMillis = anchor + periodNumber * customInvoiceDays * 1000 * 3600 * 24;
+                periodStartDate = new Date(periodStartMillis);
+                break;
+            }
+          }
+          
+          const existingInvoiceIndex = prev.findIndex(inv => 
+              inv.client === shift.client && 
+              inv.status === 'draft' &&
+              new Date(inv.date) >= periodStartDate
+          );
+          
+          if (existingInvoiceIndex > -1) {
+              const updatedInvoices = [...prev];
+              const invoiceToUpdate = updatedInvoices[existingInvoiceIndex];
+              invoiceToUpdate.items.push(newInvoiceItem);
+              return updatedInvoices;
+          } else {
+              const newInvoice: Invoice = {
+                  id: Date.now(),
+                  client: shift.client,
+                  date: new Date().toISOString().split("T")[0],
+                  items: [newInvoiceItem],
+                  status: 'draft'
+              };
+              return [newInvoice, ...prev];
+          }
+      });
+  };
+
+  const handleArchiveFY = (fyToArchive: string) => {
+      setInvoices(current => {
+          const toArchive = current.filter(i => getFinancialYear(i.date) === fyToArchive);
+          setArchivedInvoices(prev => [...prev, ...toArchive]);
+          return current.filter(i => getFinancialYear(i.date) !== fyToArchive);
+      });
+      setExpenses(current => {
+          const toArchive = current.filter(e => getFinancialYear(e.date) === fyToArchive);
+          setArchivedExpenses(prev => [...prev, ...toArchive]);
+          return current.filter(e => getFinancialYear(e.date) !== fyToArchive);
+      });
+      setSelectedFY(getFinancialYear(new Date()));
+  }
+
+    const handleSendInvoices = (invoiceIds: number[]) => {
+        setInvoices(prev => prev.map(inv => invoiceIds.includes(inv.id) ? { ...inv, status: 'sent' } : inv));
+        // Placeholder for actual sending logic
+        console.log(`Sent invoices: ${invoiceIds.join(', ')}`);
+    }
+
+    const handleBatchDownload = (invoiceIds: number[]) => {
+        if (!scriptsLoaded || !window.jspdf) {
+            alert("PDF library not loaded yet.");
+            return;
+        }
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const invoicesToDownload = invoices.filter(inv => invoiceIds.includes(inv.id));
+        
+        invoicesToDownload.forEach((inv, index) => {
+            const client = clients.find(c => c.name === inv.client);
+            const template = pdfTemplates.find(t => t.id === client?.pdfTemplateId) || pdfTemplates.find(t=> t.id === 1);
+            const totalAmount = inv.items.reduce((sum, item) => sum + item.qty * item.rate, 0).toFixed(2);
+            const fullInvoiceData = { ...inv, client, workerInfo, totalAmount, title: "Tax Invoice" };
+
+            if(template) {
+                generatePdfPage(doc, fullInvoiceData, template);
+                if (index < invoicesToDownload.length - 1) {
+                    doc.addPage();
+                }
+            }
+        });
+        
+        doc.save(`Invoices-Batch-${new Date().toLocaleDateString()}.pdf`);
+    }
+    
+    const handleDragSort = (order, setOrder) => {
+        if (!dragItem.current || !dragOverItem.current || dragItem.current.type !== dragOverItem.current.type) return;
+        
+        const _order = [...order];
+        const draggedItemContent = _order.splice(dragItem.current.index, 1)[0];
+        _order.splice(dragOverItem.current.index, 0, draggedItemContent);
+        dragItem.current = null;
+        dragOverItem.current = null;
+        setOrder(_order);
+    };
+
+    const handlePinWidget = (key) => {
+        setUiSettings(prev => ({
+            ...prev,
+            overviewWidgets: {
+                ...prev.overviewWidgets,
+                [key]: {
+                    ...prev.overviewWidgets[key],
+                    pinned: !prev.overviewWidgets[key].pinned
+                }
+            }
+        }));
+    }
+
+  const handleNavClick = (tabKey) => {
+      setActiveTab(tabKey);
+      setActiveView('list');
+  }
+  
+  const renderModalContent = () => {
+        const { view, data } = modalState;
+        switch(view) {
+            case 'profile':
+                return <ProfileEditor workerInfo={workerInfo} onSave={handleSaveWorkerProfile} onBack={closeModal} />;
+            case 'client':
+                return <ClientEditor client={data} onSave={handleSaveClient} onBack={closeModal} services={services} pdfTemplates={pdfTemplates} isModal />;
+            case 'service':
+                return <ServiceEditor service={data} onSave={handleSaveService} onBack={closeModal} isModal />;
+            case 'recurringExpense':
+                return <RecurringExpenseEditor item={data} onSave={handleSaveRecurringExpense} onBack={closeModal} />;
+            case 'shift':
+                return (
+                     <form className="space-y-4" onSubmit={e => {
+                        e.preventDefault();
+                        const formData = new FormData(e.currentTarget);
+                        handleLogShift({
+                            client: formData.get('client') as string,
+                            service: formData.get('service') as string,
+                            date: formData.get('date') as string,
+                            startTime: formData.get('startTime') as string,
+                            endTime: formData.get('endTime') as string,
+                            notes: formData.get('notes') as string,
+                        });
+                        closeModal();
+                    }}>
+                        <div>
+                            <label className="form-label" htmlFor="shift-client">Client</label>
+                            <select id="shift-client" name="client" className="form-input" required><option value="">Select Client...</option>{clients.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select>
+                        </div>
+                        <div>
+                            <label className="form-label" htmlFor="shift-service">Service</label>
+                            <select id="shift-service" name="service" className="form-input" required><option value="">Select Service...</option>{services.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}</select>
+                        </div>
+                        <div>
+                            <label className="form-label" htmlFor="shift-date">Date</label>
+                            <input id="shift-date" name="date" type="date" className="form-input" defaultValue={new Date().toISOString().split("T")[0]}/>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className="form-label" htmlFor="shift-start">Start Time</label>
+                                <input id="shift-start" name="startTime" type="time" className="form-input" />
+                            </div>
+                            <div>
+                                <label className="form-label" htmlFor="shift-end">End Time</label>
+                                <input id="shift-end" name="endTime" type="time" className="form-input" />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="form-label" htmlFor="shift-notes">Notes</label>
+                            <textarea id="shift-notes" name="notes" className="form-input" placeholder="Shift notes..."></textarea>
+                        </div>
+                        <button type="submit" className="w-full py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold">Log Shift & Add to Draft</button>
+                    </form>
+                );
+            default:
+                return null;
+        }
+    }
+
+
+  const renderContent = () => {
+    // Top-level routing for dedicated editor views
+    if (activeView === 'templates') {
+       return (
+         <div className="space-y-4">
+            <div className="flex items-center gap-4 mb-4">
+                <button onClick={() => setActiveView('list')} className="text-slate-500 hover:text-slate-900"><ArrowLeft size={20}/></button>
+                <h2 className="text-2xl font-bold text-slate-800">PDF Templates</h2>
+            </div>
+            {editingTemplate ? 
+                <PdfTemplateBuilder 
+                    initialTemplate={editingTemplate} 
+                    onSave={handleSavePdfTemplate} 
+                    onBack={closeTemplateEditor} 
+                    workerInfo={workerInfo}
+                    client={clients[0]}
+                /> :
+                <div className="bg-white p-6 rounded-xl shadow-sm">
+                    {pdfTemplates.map(t => 
+                        <div key={t.id} className="flex items-center justify-between border-b py-3 last:border-b-0">
+                            <div className="flex items-center gap-3">
+                                <div className="w-4 h-4 rounded-full" style={{backgroundColor: t.accentColor}}></div>
+                                <span>{t.name}</span>
+                                <span className="text-xs text-slate-400">({t.font})</span>
+                            </div>
+                            <button onClick={() => setEditingTemplate(t)} className="p-2 text-slate-500 hover:text-indigo-600"><Edit size={16}/></button>
+                        </div>
+                    )}
+                    <button onClick={() => setEditingTemplate({id: Date.now(), name: '', font: 'Helvetica', accentColor: '#3B82F6', notes: ''})} className="w-full text-indigo-600 font-semibold py-3 rounded-lg hover:bg-indigo-50 mt-2 flex items-center justify-center gap-2">
+                        <Plus size={16} /> New Template
+                    </button>
+                </div>
+            }
+        </div>
+       )
+    }
+    if (activeTab === 'invoices' && activeView === 'editor') {
+        return <InvoiceBuilder onBack={() => setActiveView('list')} services={services} clients={clients} invoice={editingInvoice} onSave={handleSaveInvoice} scriptsLoaded={scriptsLoaded} workerInfo={workerInfo} pdfTemplates={pdfTemplates}/>;
+    }
+    if (activeTab === 'clients' && activeView === 'editor') {
+        return <ClientEditor client={editingClient} onSave={(client) => {handleSaveClient(client); setActiveView('list');}} onBack={() => setActiveView('list')} services={services} pdfTemplates={pdfTemplates} />;
+    }
+    if (activeTab === 'services' && activeView === 'editor') {
+        return <ServiceEditor service={editingService} onSave={(service) => {handleSaveService(service); setActiveView('list');}} onBack={() => setActiveView('list')} />;
+    }
+    if (activeTab === 'expenses' && activeView === 'editor') {
+        return <ExpenseEditor expense={editingExpense} onSave={handleSaveExpense} onBack={() => setActiveView('list')} catalogue={recurringExpenses}/>;
+    }
+    if (activeTab === 'shifts' && activeView === 'details') {
+        const associatedInvoice = invoices.find(inv => viewingShift && inv.client === viewingShift.client && new Date(inv.date) >= new Date(viewingShift.date));
+        const associatedExpense = expenses.find(exp => viewingShift && exp.date === viewingShift.date);
+        return (
+            <div className="bg-white p-6 rounded-xl shadow-lg max-w-2xl mx-auto">
+                <div className="flex items-center gap-4 mb-6">
+                    <button onClick={() => setActiveView('list')} className="text-slate-500 hover:text-slate-900"><ArrowLeft size={20}/></button>
+                    <h2 className="text-2xl font-bold text-slate-800">Shift Details</h2>
+                </div>
+                {viewingShift && <div className="space-y-4">
+                    <p><span className="font-semibold">Client:</span> {viewingShift.client}</p>
+                    <p><span className="font-semibold">Service:</span> {viewingShift.service}</p>
+                    <p><span className="font-semibold">Date:</span> {new Date(viewingShift.date).toLocaleDateString('en-AU', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                    <p><span className="font-semibold">Time:</span> {viewingShift.startTime} to {viewingShift.endTime}</p>
+                    {viewingShift.notes && <p><span className="font-semibold">Notes:</span> {viewingShift.notes}</p>}
+                     <div className="flex flex-col sm:flex-row gap-4 pt-4 border-t">
+                        {associatedInvoice && <button onClick={() => {setEditingInvoice(associatedInvoice); setActiveTab('invoices'); setActiveView('editor')}} className="flex items-center gap-2 text-blue-600 hover:underline"><LinkIcon size={16} /> View Invoice #{associatedInvoice.id}</button>}
+                        {associatedExpense && <button onClick={() => {setEditingExpense(associatedExpense); setActiveTab('expenses'); setActiveView('editor')}} className="flex items-center gap-2 text-blue-600 hover:underline"><LinkIcon size={16}/> View Associated Expense</button>}
+                    </div>
+                </div>}
+            </div>
+        )
+    }
+
+
+    // Default list views for each tab
+    switch (activeTab) {
+      case "overview":
+        const sortedInvoices = [...invoices, ...archivedInvoices].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        
+        const StatsWidget = () => (
+             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                 <StatCard title="Draft Invoices" value={invoices.filter(i => i.status === 'draft').length} icon={<FileText size={20}/>} onClick={handleNavClick} tabKey="invoices"/>
+                 <StatCard title="Total Expenses (FY)" value={`$${expenses.filter(e => getFinancialYear(e.date) === selectedFY).reduce((sum, exp) => sum + exp.amount, 0).toFixed(2)}`} icon={<DollarSign size={20}/>} onClick={handleNavClick} tabKey="expenses"/>
+                 <StatCard title="Active Clients" value={clients.length} icon={<Users size={20}/>} onClick={handleNavClick} tabKey="clients"/>
+            </div>
+        );
+
+        const QuickActionsWidget = () => (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {quickActionsOrder.map((key, index) => {
+                   const action = uiSettings.quickActions[key];
+                   if (!action.visible) return null;
+                   const draggableProps = uiSettings.overviewWidgets.quickActions.pinned ? {} : {
+                       draggable: true,
+                       onDragStart: () => (dragItem.current = {index, type: 'quickAction'}),
+                       onDragEnter: () => (dragOverItem.current = {index, type: 'quickAction'}),
+                       onDragEnd: () => handleDragSort(quickActionsOrder, setQuickActionsOrder),
+                       onDragOver: e => e.preventDefault()
+                   };
+                   return <QuickActionButton key={key} title={action.title} icon={action.icon} onClick={action.onClick} draggableProps={draggableProps}/>
+                })}
+            </div>
+        );
+
+        const MainWidget = () => (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                 <ShiftsTab shifts={shifts} clients={clients} setViewingShift={setViewingShift} setActiveView={setActiveView} isWidget={true} listDisplayCount={uiSettings.listDisplayCount} />
+                 <div className="bg-white p-6 rounded-xl shadow-sm">
+                    <h2 className="text-xl font-bold text-slate-800 mb-4">Recent Invoices</h2>
+                    <div className="space-y-2 max-h-[26rem] overflow-y-auto pr-2">
+                        {sortedInvoices.slice(0, uiSettings.listDisplayCount).map(inv => (
+                        <button 
+                            key={inv.id} 
+                            onClick={() => { setEditingInvoice(inv); setActiveTab('invoices'); setActiveView('editor'); }}
+                            className="w-full flex justify-between items-center p-3 rounded-lg hover:bg-slate-50 text-left"
+                        >
+                            <div>
+                                <p className="font-semibold text-slate-700">Invoice #{inv.id} - {inv.client}</p>
+                                <p className="text-sm text-slate-500">{new Date(inv.date).toLocaleDateString('en-AU', {day: 'numeric', month: 'short', year: 'numeric'})}</p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <p className="font-bold text-slate-800 text-lg">${inv.items.reduce((s, it) => s + it.qty * it.rate, 0).toFixed(2)}</p>
+                                <span className={`px-2.5 py-1 text-xs font-semibold rounded-full ${ inv.status === 'draft' ? 'bg-amber-100 text-amber-800' : inv.status === 'sent' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>{inv.status}</span>
+                            </div>
+                        </button>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        );
+
+        const overviewComponents = {
+            Stats: StatsWidget,
+            QuickActions: QuickActionsWidget,
+            Main: MainWidget
+        };
+        
+        return (
+          <div className="space-y-8">
+             <div className="flex justify-between items-center">
+                 <div>
+                    <h2 className="text-2xl font-bold text-slate-800">Overview</h2>
+                    <p className="text-slate-500 text-sm">Welcome back, {workerInfo.name.split(' ')[0]}!</p>
+                 </div>
+                <button onClick={() => openModal('editOverview')} className="flex items-center gap-2 text-sm font-semibold text-indigo-600 hover:text-indigo-800">
+                    <LayoutDashboard size={16} />
+                    Customize Overview
+                </button>
+             </div>
+             {widgetOrder.map((key, index) => {
+                 const widget = uiSettings.overviewWidgets[key];
+                 if (!widget.visible) return null;
+
+                 const ComponentToRender = overviewComponents[widget.component];
+                 if (!ComponentToRender) return null;
+                 
+                 const draggableProps = widget.pinned ? {} : {
+                    draggable: true,
+                    onDragStart: () => (dragItem.current = { index, type: 'widget' }),
+                    onDragEnter: () => (dragOverItem.current = { index, type: 'widget' }),
+                    onDragEnd: () => handleDragSort(widgetOrder, setWidgetOrder),
+                    onDragOver: e => e.preventDefault(),
+                 };
+
+                 return (
+                    <OverviewCard
+                        key={key}
+                        title={widget.title}
+                        isPinned={widget.pinned}
+                        onPin={() => handlePinWidget(key)}
+                        draggableProps={draggableProps}
+                    >
+                        <ComponentToRender />
+                    </OverviewCard>
+                 )
+             })}
+          </div>
+        );
+       case "clients":
+         return (
+          <div className="bg-white p-6 rounded-xl shadow-sm space-y-4">
+            <div className="flex justify-between items-center">
+                <div>
+                    <h2 className="text-2xl font-bold text-slate-800">Clients</h2>
+                    <p className="text-sm text-slate-500">View and manage your client list.</p>
+                </div>
+                <button onClick={() => { setEditingClient(undefined); setActiveView('editor'); }}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold shadow-sm flex items-center gap-2">
+                  <Plus size={16}/> New Client
+                </button>
+            </div>
+            <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
+            {clients.map((c) => (
+              <button key={c.id} onClick={() => { setEditingClient(c); setActiveView('editor'); }} className="w-full text-left border border-slate-200 rounded-lg p-4 transition-shadow hover:shadow-md group">
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h3 className="font-semibold text-slate-800">{c.name}</h3>
+                        <p className="text-sm text-slate-500">{c.email} &middot; {c.phone}</p>
+                        {c.schedule && c.schedule.length > 0 &&
+                            <div className="mt-2 pt-2 border-t border-slate-100">
+                                <h4 className="text-xs font-bold text-slate-500 mb-1 flex items-center gap-1.5"><Calendar size={14} /> Schedule</h4>
+                                <div className="space-y-1">
+                                    {c.schedule.slice(0,2).map(s => (
+                                        <p key={s.id} className="text-xs text-slate-600">{s.day}, {s.startTime}-{s.endTime} ({s.service})</p>
+                                    ))}
+                                    {c.schedule.length > 2 && <p className="text-xs text-slate-400">...and {c.schedule.length - 2} more</p>}
+                                </div>
+                            </div>
+                        }
+                    </div>
+                     <div className="p-2 text-slate-400 group-hover:text-indigo-600"><Edit size={16}/></div>
+                </div>
+              </button>
+            ))}
+            </div>
+          </div>
+         );
+        case "services":
+            return (
+              <div className="bg-white p-6 rounded-xl shadow-sm space-y-4">
+                <div className="flex justify-between items-center">
+                    <div>
+                        <h2 className="text-2xl font-bold text-slate-800">Services</h2>
+                        <p className="text-sm text-slate-500">Your offered services and their rates.</p>
+                    </div>
+                     <button onClick={() => { setEditingService(undefined); setActiveView('editor'); }}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold shadow-sm flex items-center gap-2">
+                      <Plus size={16}/> New Service
+                    </button>
+                </div>
+                 <div className="space-y-3 max-h-[70vh] overflow-y-auto pr-2">
+                {services.map((s) => (
+                  <button key={s.id} onClick={() => { setEditingService(s); setActiveView('editor'); }} className="w-full text-left border border-slate-200 rounded-lg p-4 flex justify-between items-center transition-shadow hover:shadow-md group">
+                      <div>
+                        <h3 className="font-semibold text-slate-800">{s.name}</h3>
+                        <p className="text-sm text-slate-500">${s.rate} / {s.unit}</p>
+                      </div>
+                      <div className="p-2 text-slate-400 group-hover:text-indigo-600"><Edit size={16}/></div>
+                  </button>
+                ))}
+                </div>
+              </div>
+            );
+        case "expenses":
+             return (
+                <div className="space-y-8">
+                     <div className="bg-white p-6 rounded-xl shadow-sm">
+                         <div className="flex justify-between items-center">
+                            <div>
+                                <h2 className="text-2xl font-bold text-slate-800">Recurring Expenses</h2>
+                                <p className="text-sm text-slate-500">Pre-define common expenses for faster logging.</p>
+                            </div>
+                            <button onClick={() => openModal('recurringExpense')}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold shadow-sm flex items-center gap-2">
+                            <Plus size={16}/> New Item
+                            </button>
+                         </div>
+                         <div className="space-y-3 mt-4 max-h-[40vh] overflow-y-auto pr-2">
+                            {recurringExpenses.map(item => (
+                                <button key={item.id}
+                                    onClick={() => openModal('recurringExpense', item)}
+                                    className="w-full text-left border border-slate-200 rounded-lg p-4 flex justify-between items-center hover:shadow-md transition-shadow group"
+                                >
+                                    <div>
+                                        <p className="font-semibold">{item.name}</p>
+                                        <p className="text-sm text-slate-500">{item.category}</p>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <p className="font-bold text-blue-600">${item.price.toFixed(2)}</p>
+                                        <div className="p-2 text-slate-400 group-hover:text-indigo-600"><Edit size={16}/></div>
+                                    </div>
+                                </button>
+                            ))}
+                         </div>
+                    </div>
+                    <div className="bg-white p-6 rounded-xl shadow-sm space-y-4">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h2 className="text-2xl font-bold text-slate-800">Logged Expenses</h2>
+                                <p className="text-sm text-slate-500">Manage all your business expenses.</p>
+                            </div>
+                            <button onClick={() => { setEditingExpense(undefined); setActiveView('editor'); }}
+                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold shadow-sm flex items-center gap-2">
+                            <Plus size={16}/> Log Expense
+                            </button>
+                        </div>
+                        <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+                            {[...expenses, ...archivedExpenses].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((exp) => (
+                                <button key={exp.id} onClick={() => { setEditingExpense(exp); setActiveView('editor'); }} className="w-full text-left border border-slate-200 rounded-lg p-4 flex justify-between items-center hover:bg-slate-50 transition-colors group">
+                                    <div>
+                                        <p className="font-semibold text-slate-800">{exp.description}</p>
+                                        <p className="text-sm text-slate-500">{exp.category} &middot; {new Date(exp.date).toLocaleDateString()}</p>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <p className="font-bold text-blue-600 text-lg">${exp.amount.toFixed(2)}</p>
+                                        <div className="p-2 text-slate-400 group-hover:text-indigo-600"><Edit size={16}/></div>
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        case "invoices":
+            return <InvoicesTab 
+                invoices={[...invoices, ...archivedInvoices]}
+                expenses={[...expenses, ...archivedExpenses]}
+                onArchive={handleArchiveFY}
+                selectedFY={selectedFY}
+                setSelectedFY={setSelectedFY}
+                setEditingInvoice={setEditingInvoice}
+                setActiveView={setActiveView}
+                onUpdateStatus={handleUpdateInvoiceStatus}
+                openSendModal={() => openModal('sendInvoices')}
+                listDisplayCount={uiSettings.listDisplayCount}
+            />
+        case "shifts":
+            return <ShiftsTab 
+                        shifts={shifts}
+                        clients={clients}
+                        setViewingShift={setViewingShift}
+                        setActiveView={setActiveView}
+                        listDisplayCount={uiSettings.listDisplayCount}
+                    />
+      default:
+        return (
+          <div className="text-slate-500 text-sm p-8 border-2 border-dashed border-slate-300 rounded-xl bg-white text-center">
+            <p className="mb-2 font-semibold">This is the <strong>{activeTab}</strong> section.</p>
+            <p>This part of the application is under construction.</p>
+          </div>
+        );
+    }
+  };
+
+
+  return (
+    <div className="min-h-screen bg-slate-50 font-sans">
+      <nav className="bg-white/80 backdrop-blur-lg shadow-sm px-6 py-3 flex justify-between items-center sticky top-0 z-40 border-b border-slate-200">
+        <h1 className="text-xl font-bold text-indigo-600">Da Foundry</h1>
+        <div className="hidden md:flex items-center bg-slate-100 rounded-full p-1">
+          {Object.entries(uiSettings.navItems).map(([key, item]) => {
+              if (!item.visible) return null;
+              return (
+              <button
+                key={key}
+                onClick={() => handleNavClick(key)}
+                className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-colors duration-300 ${
+                    activeTab === key
+                    ? "bg-white text-indigo-600 shadow"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                {item.label}
+              </button>
+          )})}
+        </div>
+        <div className="flex items-center gap-3">
+             <ProfileDropdown 
+                workerInfo={workerInfo}
+                onEditProfile={() => openModal('profile')}
+                onEditTemplates={() => setActiveView('templates')}
+             />
+        </div>
+      </nav>
+      
+       <SendInvoicesModal 
+            isOpen={modalState.view === 'sendInvoices'}
+            onClose={closeModal}
+            draftInvoices={invoices.filter(i => i.status === 'draft')}
+            onSend={handleSendInvoices}
+            onDownloadBatch={handleBatchDownload}
+            workerInfo={workerInfo}
+       />
+       <EditOverviewModal 
+          isOpen={modalState.view === 'editOverview'}
+          onClose={closeModal}
+          uiSettings={uiSettings}
+          onSave={setUiSettings}
+       />
+       <AppModal isOpen={modalState.isOpen && !['sendInvoices', 'editOverview'].includes(modalState.view)} 
+          onClose={closeModal}
+          title={
+            modalState.view === 'profile' ? "Edit Worker Profile" :
+            modalState.view === 'client' ? (modalState.data ? "Edit Client" : "New Client") :
+            modalState.view === 'service' ? (modalState.data ? "Edit Service" : "New Service") :
+            modalState.view === 'recurringExpense' ? (modalState.data ? "Edit Recurring Item" : "New Recurring Item") :
+            modalState.view === 'shift' ? "Log New Shift" : ""
+        } 
+        maxWidth={
+            ['client', 'profile'].includes(modalState.view as string) ? 'max-w-2xl' : 'max-w-md'
+        }>
+            {renderModalContent()}
+        </AppModal>
+
+      <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+        {renderContent()}
+      </main>
+    </div>
+  );
+}
+
+// Add custom styles for form inputs and animations
+const style = document.createElement('style');
+style.textContent = `
+  .form-input {
+    width: 100%;
+    border: 1px solid #cbd5e1; /* slate-300 */
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem; /* rounded-lg */
+    transition: box-shadow 0.2s, border-color 0.2s;
+    font-size: 0.875rem;
+  }
+  .form-input:focus {
+    outline: none;
+    border-color: #4f46e5; /* indigo-600 */
+    box-shadow: 0 0 0 2px #c7d2fe; /* indigo-200 */
+  }
+  .form-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #475569; /* slate-600 */
+    margin-bottom: 0.25rem;
+  }
+  @keyframes fade-in-scale {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+  }
+  .animate-fade-in-scale {
+    animation: fade-in-scale 0.2s ease-out forwards;
+  }
+`;
+document.head.appendChild(style);
