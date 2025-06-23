@@ -12,9 +12,9 @@ import {
 } from "lucide-react";
 
 const statCards = [
-  { title: "Draft Invoices", value: 2 },
-  { title: "Sent Invoices", value: 5 },
-  { title: "Active Clients", value: 3 },
+  { title: "Draft Invoices", key: "invoices" },
+  { title: "Active Clients", key: "clients" },
+  { title: "Services", key: "services" },
 ];
 
 const quickActions = [
@@ -33,6 +33,7 @@ interface Service {
   name: string;
   rate: string;
   unit: string;
+  type: "service" | "product";
 }
 
 interface Client {
@@ -40,6 +41,21 @@ interface Client {
   email: string;
   phone: string;
   notes?: string;
+  services: string[];
+}
+
+interface InvoiceItem {
+  description: string;
+  qty: number;
+  rate: number;
+}
+
+interface Invoice {
+  id: number;
+  client: string;
+  date: string;
+  items: InvoiceItem[];
+  status: "draft" | "sent";
 }
 
 const workerInfo = {
@@ -56,23 +72,35 @@ function InvoiceBuilder({
   onBack,
   services,
   clients,
+  onSave,
+  invoice,
 }: {
   onBack: () => void;
   services: Service[];
   clients: Client[];
+  onSave: (inv: Invoice) => void;
+  invoice?: Invoice;
 }) {
   const today = new Date().toISOString().split("T")[0];
-  const nextInvoiceNumber = 126;
+  const nextInvoiceNumber = invoice?.id || 126;
 
-  const [client, setClient] = useState("");
+  const [client, setClient] = useState(invoice?.client || "");
   const [invoiceNumber, setInvoiceNumber] = useState<number>(nextInvoiceNumber);
-  const [invoiceDate, setInvoiceDate] = useState(today);
+  const [invoiceDate, setInvoiceDate] = useState(invoice?.date || today);
   const [title, setTitle] = useState("Invoice");
   const [note, setNote] = useState("");
 
-  const [items, setItems] = useState([
-    { service: "", custom: "", qty: "", rate: "", unit: "" },
-  ]);
+  const [items, setItems] = useState(
+    invoice
+      ? invoice.items.map((it) => ({
+          service: it.description,
+          custom: "",
+          qty: String(it.qty),
+          rate: String(it.rate),
+          unit: "",
+        }))
+      : [{ service: "", custom: "", qty: "", rate: "", unit: "" }],
+  );
   const [pdfUrl, setPdfUrl] = useState("");
 
   useEffect(() => {
@@ -82,7 +110,7 @@ function InvoiceBuilder({
     doc.text(title || "Invoice", 105, 20, { align: "center" });
     doc.setFontSize(12);
 
-    doc.text(workerInfo.tradingName, 10, 30);
+    doc.text(workerInfo.tradingName || workerInfo.name, 10, 30);
     doc.text(`ABN: ${workerInfo.abn}`, 10, 36);
     doc.text(workerInfo.address, 10, 42);
 
@@ -144,6 +172,19 @@ function InvoiceBuilder({
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
+            const invoiceData: Invoice = {
+              id: invoiceNumber,
+              client,
+              date: invoiceDate,
+              items: items.map((it) => ({
+                description: it.service === "custom" ? it.custom : it.service,
+                qty: Number(it.qty || 0),
+                rate: Number(it.rate || 0),
+              })),
+              status: "draft",
+            };
+            onSave(invoiceData);
+            onBack();
           }}
         >
           <select
@@ -287,7 +328,7 @@ function InvoiceBuilder({
               .toFixed(2)}
           </div>
           <button className="w-full py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
-            Create Invoice
+            Save Draft
           </button>
         </form>
         <div className="w-full h-96 border">
@@ -310,14 +351,17 @@ function Modal({
   onAddClient,
   onAddService,
   clients,
+  services,
 }: {
   type: string;
   onClose: () => void;
   onAddClient: (client: Client) => void;
   onAddService: (service: Service) => void;
   clients: Client[];
+  services: Service[];
 }) {
   const modalRef = useRef<HTMLDivElement | null>(null);
+  const [selectedClient, setSelectedClient] = useState<string>("");
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -363,11 +407,13 @@ function Modal({
             onSubmit={(e) => {
               e.preventDefault();
               const formData = new FormData(e.currentTarget);
+              const selected = formData.getAll("svc") as string[];
               onAddClient({
                 name: String(formData.get("name")),
                 email: String(formData.get("email")),
                 phone: String(formData.get("phone")),
                 notes: String(formData.get("notes")),
+                services: selected,
               });
               onClose();
             }}
@@ -376,15 +422,43 @@ function Modal({
             <input name="email" className="w-full border px-4 py-2 rounded" placeholder="Email" type="email" />
             <input name="phone" className="w-full border px-4 py-2 rounded" placeholder="Phone" />
             <textarea name="notes" className="w-full border px-4 py-2 rounded" placeholder="Notes"></textarea>
+            <div>
+              <p className="text-sm font-medium">Services</p>
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                {services.map((s) => (
+                  <label key={s.name} className="text-sm">
+                    <input type="checkbox" name="svc" value={s.name} className="mr-1" />
+                    {s.name}
+                  </label>
+                ))}
+              </div>
+            </div>
             <button className="w-full py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Save Client</button>
           </form>
         )}
         {type === "shift" && (
           <form className="space-y-4">
-            <select className="w-full border px-4 py-2 rounded">
+            <select
+              className="w-full border px-4 py-2 rounded"
+              value={selectedClient}
+              onChange={(e) => setSelectedClient(e.target.value)}
+            >
               <option value="">Select Client</option>
               {clients.map((c) => (
                 <option key={c.name}>{c.name}</option>
+              ))}
+            </select>
+            <select className="w-full border px-4 py-2 rounded">
+              <option value="">Select Service</option>
+              {(selectedClient
+                ? services.filter((s) =>
+                    clients
+                      .find((c) => c.name === selectedClient)
+                      ?.services.includes(s.name),
+                  )
+                : services
+              ).map((s) => (
+                <option key={s.name}>{s.name}</option>
               ))}
             </select>
             <input
@@ -421,6 +495,7 @@ function Modal({
                 name: String(formData.get("name")),
                 rate: String(formData.get("rate")),
                 unit: String(formData.get("unit")),
+                type: "service",
               });
               onClose();
             }}
@@ -440,13 +515,34 @@ export default function WorkerDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
   const [showInvoiceBuilder, setShowInvoiceBuilder] = useState(false);
   const [activeModal, setActiveModal] = useState("");
+  const [editingService, setEditingService] = useState<number | null>(null);
+  const [draftInvoices, setDraftInvoices] = useState<Invoice[]>([
+    {
+      id: 124,
+      client: "Jane Doe",
+      date: "2025-06-21",
+      items: [{ description: "Community Access", qty: 2, rate: 50 }],
+      status: "draft",
+    },
+  ]);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | undefined>();
   const [clients, setClients] = useState<Client[]>([
-    { name: "Jane Doe", email: "janedoe@email.com", phone: "0400 123 456" },
-    { name: "Mark Smith", email: "marksmith@email.com", phone: "0400 654 321" },
+    {
+      name: "Jane Doe",
+      email: "janedoe@email.com",
+      phone: "0400 123 456",
+      services: ["Community Access"],
+    },
+    {
+      name: "Mark Smith",
+      email: "marksmith@email.com",
+      phone: "0400 654 321",
+      services: ["Domestic Assistance"],
+    },
   ]);
   const [services, setServices] = useState<Service[]>([
-    { name: "Community Access", rate: "50", unit: "hrs" },
-    { name: "Domestic Assistance", rate: "45", unit: "hrs" },
+    { name: "Community Access", rate: "50", unit: "hrs", type: "service" },
+    { name: "Domestic Assistance", rate: "45", unit: "hrs", type: "service" },
   ]);
 
   return (
@@ -494,23 +590,33 @@ export default function WorkerDashboard() {
         onAddClient={(c) => setClients((prev) => [...prev, c])}
         onAddService={(s) => setServices((prev) => [...prev, s])}
         clients={clients}
+        services={services}
       />
 
       <main className="max-w-6xl mx-auto p-6">
         {activeTab === "overview" && (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
-              {statCards.map((card, idx) => (
-                <div
-                  key={idx}
-                  className="bg-white p-6 rounded-lg shadow hover:shadow-md"
-                >
-                  <p className="text-gray-500 text-sm">{card.title}</p>
-                  <p className="text-2xl font-semibold text-indigo-600">
-                    {card.value}
-                  </p>
-                </div>
-              ))}
+              {statCards.map((card, idx) => {
+                const value =
+                  card.key === "invoices"
+                    ? draftInvoices.length
+                    : card.key === "clients"
+                      ? clients.length
+                      : services.length;
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => setActiveTab(card.key)}
+                    className="bg-white p-6 rounded-lg shadow hover:shadow-md w-full text-left"
+                  >
+                    <p className="text-gray-500 text-sm">{card.title}</p>
+                    <p className="text-2xl font-semibold text-indigo-600">
+                      {value}
+                    </p>
+                  </button>
+                );
+              })}
             </div>
 
             <div className="mb-8">
@@ -536,7 +642,7 @@ export default function WorkerDashboard() {
               </div>
             </div>
 
-            <div>
+            <div className="bg-white p-4 rounded-xl shadow">
               <h2 className="text-lg font-semibold mb-4">Recent Activity</h2>
               <ul className="space-y-2 text-sm text-gray-700">
                 <li>- Shift logged with Jane – 2h (Community Access)</li>
@@ -573,9 +679,77 @@ export default function WorkerDashboard() {
             </p>
             {services.map((s, idx) => (
               <div key={idx} className="border rounded p-4 flex justify-between items-center">
-                <div>
-                  <h3 className="font-semibold">{s.name}</h3>
-                  <p className="text-sm text-gray-500">${s.rate}/{s.unit}</p>
+                {editingService === idx ? (
+                  <div className="flex-1 space-y-2">
+                    <input
+                      value={s.name}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setServices((prev) =>
+                          prev.map((sv, i) => (i === idx ? { ...sv, name: value } : sv)),
+                        );
+                      }}
+                      className="w-full border px-2 py-1 rounded"
+                    />
+                    <div className="flex space-x-2">
+                      <input
+                        value={s.rate}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setServices((prev) =>
+                            prev.map((sv, i) => (i === idx ? { ...sv, rate: value } : sv)),
+                          );
+                        }}
+                        className="border px-2 py-1 rounded w-24"
+                        type="number"
+                      />
+                      <input
+                        value={s.unit}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setServices((prev) =>
+                            prev.map((sv, i) => (i === idx ? { ...sv, unit: value } : sv)),
+                          );
+                        }}
+                        className="border px-2 py-1 rounded w-24"
+                      />
+                      <select
+                        value={s.type}
+                        onChange={(e) => {
+                          const value = e.target.value as "service" | "product";
+                          setServices((prev) =>
+                            prev.map((sv, i) => (i === idx ? { ...sv, type: value } : sv)),
+                          );
+                        }}
+                        className="border px-2 py-1 rounded"
+                      >
+                        <option value="service">Service</option>
+                        <option value="product">Product</option>
+                      </select>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <h3 className="font-semibold">{s.name}</h3>
+                    <p className="text-sm text-gray-500">${s.rate}/{s.unit}</p>
+                  </div>
+                )}
+                <div className="space-x-2">
+                  {editingService === idx ? (
+                    <button
+                      className="text-sm text-green-600"
+                      onClick={() => setEditingService(null)}
+                    >
+                      Done
+                    </button>
+                  ) : (
+                    <button
+                      className="text-sm text-indigo-600"
+                      onClick={() => setEditingService(idx)}
+                    >
+                      Edit
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -607,51 +781,102 @@ export default function WorkerDashboard() {
             <p className="text-sm text-gray-600">
               Manage invoices grouped by clients.
             </p>
-            <div className="text-right">
+            <div className="flex justify-between items-center">
               <button
                 onClick={() => setShowInvoiceBuilder(true)}
                 className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
               >
                 New Invoice
               </button>
+              <div className="text-sm font-medium">
+                Estimated Tax: $
+                {(
+                  draftInvoices
+                    .reduce(
+                      (sum, inv) =>
+                        sum +
+                        inv.items.reduce((s, it) => s + it.qty * it.rate, 0),
+                      0,
+                    ) * 0.3
+                ).toFixed(2)}
+              </div>
+              <button
+                onClick={() => setDraftInvoices([])}
+                className="px-3 py-1 border rounded text-sm"
+              >
+                Archive FY
+              </button>
             </div>
             <div className="space-y-4">
-              <div className="border rounded p-4">
-                <h3 className="font-semibold mb-2">Jane Doe</h3>
-                <ul className="space-y-2">
-                  <li className="flex justify-between items-center">
-                    <span>Invoice #124 - $300 - Draft</span>
-                    <div className="space-x-2">
-                      <button className="px-3 py-1 bg-indigo-500 text-white rounded text-sm">
-                        Preview
-                      </button>
-                      <button className="px-3 py-1 bg-indigo-600 text-white rounded text-sm">
-                        Send
-                      </button>
-                    </div>
-                  </li>
-                </ul>
-              </div>
-              <div className="border rounded p-4">
-                <h3 className="font-semibold mb-2">Mark Smith</h3>
-                <ul className="space-y-2">
-                  <li className="flex justify-between items-center">
-                    <span>Invoice #123 - $180 - Sent</span>
-                    <button className="px-3 py-1 bg-gray-400 text-white rounded text-sm">
-                      View
-                    </button>
-                  </li>
-                </ul>
-              </div>
+              {clients.map((c) => {
+                const clientInvoices = draftInvoices.filter(
+                  (d) => d.client === c.name,
+                );
+                if (!clientInvoices.length) return null;
+                const total = clientInvoices.reduce(
+                  (sum, inv) =>
+                    sum + inv.items.reduce((s, it) => s + it.qty * it.rate, 0),
+                  0,
+                );
+                return (
+                  <div key={c.name} className="border rounded p-4">
+                    <h3 className="font-semibold mb-2">
+                      {c.name} - ${total.toFixed(2)}
+                    </h3>
+                    <ul className="space-y-2">
+                      {clientInvoices.map((inv) => (
+                        <li
+                          key={inv.id}
+                          className="flex justify-between items-center"
+                        >
+                          <span>
+                            Invoice #{inv.id} - $
+                            {inv.items
+                              .reduce((s, it) => s + it.qty * it.rate, 0)
+                              .toFixed(2)}
+                            - {inv.status}
+                          </span>
+                          <div className="space-x-2">
+                            <button
+                              className="px-3 py-1 bg-indigo-500 text-white rounded text-sm"
+                              onClick={() => {
+                                setEditingInvoice(inv);
+                                setShowInvoiceBuilder(true);
+                              }}
+                            >
+                              Preview
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
 
         {activeTab === "invoices" && showInvoiceBuilder && (
           <InvoiceBuilder
-            onBack={() => setShowInvoiceBuilder(false)}
+            onBack={() => {
+              setShowInvoiceBuilder(false);
+              setEditingInvoice(undefined);
+            }}
             services={services}
             clients={clients}
+            invoice={editingInvoice}
+            onSave={(inv) => {
+              setDraftInvoices((prev) => {
+                const existing = prev.findIndex((d) => d.id === inv.id);
+                if (existing >= 0) {
+                  const copy = [...prev];
+                  copy[existing] = inv;
+                  return copy;
+                }
+                return [...prev, inv];
+              });
+            }}
           />
         )}
 

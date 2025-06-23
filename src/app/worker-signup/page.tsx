@@ -28,7 +28,11 @@ export default function WorkerSignupWizard() {
   };
 
   const handleSubmit = () => {
-    console.log("✅ Worker signed up:", form);
+    const data = { ...form };
+    if (!data.tradingName) {
+      data.tradingName = data.fullName;
+    }
+    console.log("✅ Worker signed up:", data);
     // TODO: Save to Firebase/auth
     router.push("/worker-dashboard");
   };
