@@ -1373,6 +1373,68 @@
             </div>
         );
     }
+
+    const InvoicePreviewComponent = ({ template }) => {
+        if (!template) return null;
+
+        return (
+            <div className="bg-white p-6 rounded-xl shadow-lg max-w-4xl mx-auto">
+                {template.logo && template.show?.logo && (
+                    <img src={template.logo} alt="logo" className="h-24 mb-4" />
+                )}
+                <h2 className="text-2xl font-bold mb-4" style={{ fontFamily: template.font }}>
+                    {template.invoiceTitle}
+                </h2>
+                <div className="grid grid-cols-2 gap-6 mb-6">
+                    {template.show?.from && (
+                        <pre className="whitespace-pre-wrap text-sm">{template.from}</pre>
+                    )}
+                    {template.show?.to && (
+                        <pre className="whitespace-pre-wrap text-sm text-right">{template.to}</pre>
+                    )}
+                </div>
+                <table className="w-full border border-slate-300 mb-6 text-sm">
+                    <thead className="bg-slate-100">
+                        <tr>
+                            <th className="border p-2 text-left">Description</th>
+                            <th className="border p-2 text-right">Qty</th>
+                            <th className="border p-2 text-right">Unit Price</th>
+                            <th className="border p-2 text-right">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {template.items.map(item => (
+                            <tr key={item.id}>
+                                <td className="border p-2">{item.desc}</td>
+                                <td className="border p-2 text-right">{item.qty}</td>
+                                <td className="border p-2 text-right">{item.unit_price}</td>
+                                <td className="border p-2 text-right">{item.amount}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+                <div className="space-y-1 text-right text-sm">
+                    {template.totals.map((t, idx) => (
+                        t.enabled && (
+                            <div key={idx} className="flex justify-end gap-2">
+                                <span>{t.label}</span>
+                                <span className="font-semibold">{t.value}</span>
+                            </div>
+                        )
+                    ))}
+                </div>
+                {template.notes && template.show?.notes && (
+                    <p className="mt-6 whitespace-pre-wrap text-sm">{template.notes}</p>
+                )}
+                {template.footer && template.show?.footer && (
+                    <p className="mt-6 text-xs text-center whitespace-pre-wrap text-slate-500">
+                        {template.footer}
+                    </p>
+                )}
+            </div>
+        );
+    };
+
     // --- TAB COMPONENTS ---
 
     const ShiftsTab = ({ shifts, clients, setViewingShift, setActiveView, isWidget = false, listDisplayCount = 10 }) => {
@@ -1893,7 +1955,7 @@
                         </form>
                     );
                 case 'invoice-preview':
-                    return <InvoicePreviewComponent template={data} isEditing={false} />;
+                    return <InvoicePreviewComponent template={data} />;
                 default:
                     return null;
             }
