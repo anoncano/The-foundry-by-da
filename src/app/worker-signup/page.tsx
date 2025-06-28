@@ -6,13 +6,15 @@ export default function WorkerSignupWizard() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
-    fullName: "",
+    firstName: "",
+    lastName: "",
     email: "",
-    phone: "",
-    tradingName: "",
-    abn: "",
-    gstRegistered: "No",
     address: "",
+    businessName: "",
+    invoiceStart: "",
+    bankAccountName: "",
+    bankAccountNumber: "",
+    bsb: "",
   });
 
   const next = () => setStep(step + 1);
@@ -25,7 +27,7 @@ export default function WorkerSignupWizard() {
   const handleSubmit = () => {
     console.log("✅ Worker signed up:", form);
     // TODO: Save to Firebase/auth
-    router.push("/worker-dashboard");
+    router.push("/dashboard2-dev");
   };
 
   return (
@@ -34,14 +36,17 @@ export default function WorkerSignupWizard() {
 
       {step === 1 && (
         <>
-          <label>Full Name</label>
-          <input name="fullName" onChange={handleChange} value={form.fullName} className="w-full mb-4 p-2 border rounded" />
+          <label>First Name</label>
+          <input name="firstName" onChange={handleChange} value={form.firstName} className="w-full mb-4 p-2 border rounded" />
+
+          <label>Last Name</label>
+          <input name="lastName" onChange={handleChange} value={form.lastName} className="w-full mb-4 p-2 border rounded" />
 
           <label>Email</label>
           <input name="email" type="email" onChange={handleChange} value={form.email} className="w-full mb-4 p-2 border rounded" />
 
-          <label>Phone</label>
-          <input name="phone" onChange={handleChange} value={form.phone} className="w-full mb-4 p-2 border rounded" />
+          <label>Address</label>
+          <input name="address" onChange={handleChange} value={form.address} className="w-full mb-4 p-2 border rounded" />
 
           <button onClick={next} className="bg-indigo-600 text-white px-4 py-2 rounded">Next</button>
         </>
@@ -49,20 +54,20 @@ export default function WorkerSignupWizard() {
 
       {step === 2 && (
         <>
-          <label>Trading Name (optional)</label>
-          <input name="tradingName" onChange={handleChange} value={form.tradingName} className="w-full mb-4 p-2 border rounded" />
+          <label>Business Name (optional)</label>
+          <input name="businessName" onChange={handleChange} value={form.businessName} className="w-full mb-4 p-2 border rounded" />
 
-          <label>ABN</label>
-          <input name="abn" onChange={handleChange} value={form.abn} className="w-full mb-4 p-2 border rounded" />
+          <label>Invoice Starting # (optional)</label>
+          <input name="invoiceStart" onChange={handleChange} value={form.invoiceStart} className="w-full mb-4 p-2 border rounded" />
 
-          <label>Registered for GST?</label>
-          <select name="gstRegistered" value={form.gstRegistered} onChange={handleChange} className="w-full mb-4 p-2 border rounded">
-            <option>No</option>
-            <option>Yes</option>
-          </select>
+          <label>Bank Account Name</label>
+          <input name="bankAccountName" onChange={handleChange} value={form.bankAccountName} className="w-full mb-4 p-2 border rounded" />
 
-          <label>Business Address (optional)</label>
-          <input name="address" onChange={handleChange} value={form.address} className="w-full mb-4 p-2 border rounded" />
+          <label>Bank Account Number</label>
+          <input name="bankAccountNumber" onChange={handleChange} value={form.bankAccountNumber} className="w-full mb-4 p-2 border rounded" />
+
+          <label>BSB</label>
+          <input name="bsb" onChange={handleChange} value={form.bsb} className="w-full mb-4 p-2 border rounded" />
 
           <div className="flex justify-between">
             <button onClick={prev} className="px-4 py-2 border rounded">Back</button>
