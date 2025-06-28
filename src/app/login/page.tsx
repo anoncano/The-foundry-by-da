@@ -36,8 +36,9 @@ export default function LoginPage() {
       else if (role === "worker") router.push("/worker-dashboard");
       else if (role === "client") router.push("/client-dashboard");
       else throw new Error("Unknown user role.");
-    } catch (err: any) {
-      setError(err.message || "Login failed");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Login failed";
+      setError(message);
     } finally {
       setLoading(false);
     }

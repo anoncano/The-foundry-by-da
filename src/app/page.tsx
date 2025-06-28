@@ -29,13 +29,13 @@ export default function HomePage() {
             <div className="flex flex-col gap-2">
               <Link href="/worker-signup">
                 <button className="w-full border border-indigo-600 text-indigo-600 py-2 rounded hover:bg-indigo-50 transition">
-                  I'm a Worker
+                  I am a Worker
                 </button>
               </Link>
 
               <Link href="/client-signup">
                 <button className="w-full border border-emerald-600 text-emerald-600 py-2 rounded hover:bg-emerald-50 transition">
-                  I'm a Client
+                  I am a Client
                 </button>
               </Link>
 

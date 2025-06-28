@@ -33,7 +33,7 @@ export default function AdminPage() {
     });
 
     return () => unsub();
-  }, []);
+  }, [router]);
 
   if (loading) return <p className="text-center mt-10">Checking access...</p>;
   if (!isAdmin) return null;
