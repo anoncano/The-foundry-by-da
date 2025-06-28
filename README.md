@@ -1,14 +1,16 @@
 # The Foundry by DA
 
-This is a simple Next.js + Firebase project. Ensure you have **Node.js 20** or newer.
+This is a simple Next.js + Firebase project. It **requires Node.js 20** or newer.
 
 ## Setup
 
-Install dependencies:
+Install dependencies (required before building):
 
 ```bash
 npm ci
 ```
+
+If you skip this step, `npm run build` will fail with `next: not found`.
 
 Run the development server:
 
