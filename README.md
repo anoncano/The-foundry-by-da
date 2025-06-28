@@ -2,7 +2,15 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+Ensure you have **Node.js 20** or newer installed.
+
+Install dependencies:
+
+```bash
+npm ci
+```
+
+Then run the development server:
 
 ```bash
 npm run dev
@@ -15,6 +23,12 @@ bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+To create an optimized production build run:
+
+```bash
+npm run build
+```
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
