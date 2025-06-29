@@ -8,4 +8,4 @@ Run `npm install` and `npm run build` inside the `my-app` directory to build the
 
 ## Deployment
 
-GitHub Actions workflow at `.github/workflows/firebase-hosting.yml` deploys to Firebase Hosting. Add a secret `FIREBASE_SERVICE_ACCOUNT` containing your service account JSON.
+GitHub Actions workflow at `.github/workflows/firebase-hosting.yml` deploys to Firebase Hosting. Add a secret `FIREBASE_SERVICE_ACCOUNT_THE_FOUNDRY_BY_DA` containing your service account JSON.
