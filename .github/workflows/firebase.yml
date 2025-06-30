@@ -12,6 +12,7 @@ jobs:
       contents: read
       pull-requests: write
       deployments: write
+      checks: write
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
