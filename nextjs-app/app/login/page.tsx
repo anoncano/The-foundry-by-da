@@ -22,7 +22,7 @@ export default function LoginPage() {
       } else if (role === 'admin') {
         router.push('/admin');
       } else {
-        router.push('/client');
+        router.push('/participant');
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);

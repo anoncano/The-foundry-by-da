@@ -14,7 +14,7 @@ export default function Home() {
         const role = await getUserRole(user.uid);
         if (role === 'worker') router.push('/worker/dashboard');
         else if (role === 'admin') router.push('/admin');
-        else router.push('/client');
+        else router.push('/participant');
       }
     });
     return unsub;
