@@ -23,7 +23,7 @@ export default function SignUpPage() {
         email,
       });
       if (role === 'worker') {
-        router.push('/worker/dashboard');
+        router.push('/worker/signup');
       } else if (role === 'admin') {
         router.push('/admin');
       } else {

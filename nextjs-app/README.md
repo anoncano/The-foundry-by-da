@@ -20,6 +20,7 @@ This app demonstrates a small Next.js + Firebase setup for logging shifts and cr
 ## Features
 
 - Participant signup wizard with service selection
+- **New:** Worker signup form to capture ABN details before accessing the dashboard
 - Worker dashboard with clients, shifts, invoices and expenses
 - Admin area for uploading NDIS support catalogues and managing SMS pricing
 
