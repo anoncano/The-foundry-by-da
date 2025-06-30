@@ -13,15 +13,17 @@ export default function NavBar() {
   }, []);
 
   return (
-    <nav className="flex gap-4 p-4 border-b">
-      <Link href="/">Home</Link>
-      {!user && <Link href="/login">Login</Link>}
-      {!user && <Link href="/signup">Sign Up</Link>}
-      <Link href="/admin">Admin</Link>
-      <Link href="/worker/dashboard">Worker</Link>
-      <Link href="/participant">Participant</Link>
+    <nav className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 p-4 border-b">
+      <div className="flex gap-2 flex-wrap">
+        <Link href="/">Home</Link>
+        {!user && <Link href="/login">Login</Link>}
+        {!user && <Link href="/signup">Sign Up</Link>}
+        <Link href="/admin">Admin</Link>
+        <Link href="/worker/dashboard">Worker</Link>
+        <Link href="/participant">Participant</Link>
+      </div>
       {user && (
-        <button onClick={() => signOut(auth)} className="text-red-500">
+        <button onClick={() => signOut(auth)} className="text-red-500 mt-2 sm:mt-0">
           Sign Out
         </button>
       )}
