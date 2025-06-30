@@ -37,7 +37,7 @@ export default function ShiftLogger() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-      <select className="border p-2" value={clientId} onChange={(e) => setClientId(e.target.value)}>
+      <select className="border p-2 text-black" value={clientId} onChange={(e) => setClientId(e.target.value)}>
         <option value="">Select Client</option>
         {clients.map((c) => (
           <option key={c.id} value={c.id}>
@@ -45,10 +45,10 @@ export default function ShiftLogger() {
           </option>
         ))}
       </select>
-      <input className="border p-2" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-      <input className="border p-2" type="time" value={start} onChange={(e) => setStart(e.target.value)} />
-      <input className="border p-2" type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
-      <input className="border p-2" placeholder="Service Code" value={serviceCode} onChange={(e) => setServiceCode(e.target.value)} />
+      <input className="border p-2 text-black" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      <input className="border p-2 text-black" type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+      <input className="border p-2 text-black" type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+      <input className="border p-2 text-black" placeholder="Service Code" value={serviceCode} onChange={(e) => setServiceCode(e.target.value)} />
       <button type="submit" className="bg-blue-500 text-white p-2">
         Log
       </button>

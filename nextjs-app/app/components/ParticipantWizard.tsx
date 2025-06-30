@@ -65,11 +65,11 @@ export default function ParticipantWizard() {
       {step === 1 && (
         <div className="flex flex-col gap-2">
           <h2 className="text-lg font-bold">Personal Info</h2>
-          <input className="border p-2" placeholder="Full Name" value={formData.name} onChange={(e) => handleChange('name', e.target.value)} />
-          <input className="border p-2" type="date" value={formData.dob} onChange={(e) => handleChange('dob', e.target.value)} />
-          <input className="border p-2" placeholder="NDIS Number" value={formData.ndisNumber} onChange={(e) => handleChange('ndisNumber', e.target.value)} />
-          <input className="border p-2" type="email" placeholder="Email" value={formData.email} onChange={(e) => handleChange('email', e.target.value)} />
-          <input className="border p-2" type="password" placeholder="Password" value={formData.password} onChange={(e) => handleChange('password', e.target.value)} />
+          <input className="border p-2 text-black" placeholder="Full Name" value={formData.name} onChange={(e) => handleChange('name', e.target.value)} />
+          <input className="border p-2 text-black" type="date" value={formData.dob} onChange={(e) => handleChange('dob', e.target.value)} />
+          <input className="border p-2 text-black" placeholder="NDIS Number" value={formData.ndisNumber} onChange={(e) => handleChange('ndisNumber', e.target.value)} />
+          <input className="border p-2 text-black" type="email" placeholder="Email" value={formData.email} onChange={(e) => handleChange('email', e.target.value)} />
+          <input className="border p-2 text-black" type="password" placeholder="Password" value={formData.password} onChange={(e) => handleChange('password', e.target.value)} />
           <button className="bg-blue-500 text-white p-2" onClick={() => setStep(2)}>
             Next
           </button>
@@ -81,13 +81,13 @@ export default function ParticipantWizard() {
           <h2 className="text-lg font-bold">Plan Details</h2>
           <label className="flex gap-2 items-center">
             <span>Plan Start</span>
-            <input className="border p-2" type="date" value={formData.planStart} onChange={(e) => handleChange('planStart', e.target.value)} />
+            <input className="border p-2 text-black" type="date" value={formData.planStart} onChange={(e) => handleChange('planStart', e.target.value)} />
           </label>
           <label className="flex gap-2 items-center">
             <span>Plan End</span>
-            <input className="border p-2" type="date" value={formData.planEnd} onChange={(e) => handleChange('planEnd', e.target.value)} />
+            <input className="border p-2 text-black" type="date" value={formData.planEnd} onChange={(e) => handleChange('planEnd', e.target.value)} />
           </label>
-          <input className="border p-2" placeholder="Billing Email" value={formData.billingEmail} onChange={(e) => handleChange('billingEmail', e.target.value)} />
+          <input className="border p-2 text-black" placeholder="Billing Email" value={formData.billingEmail} onChange={(e) => handleChange('billingEmail', e.target.value)} />
           <div className="flex gap-2">
             <label className="flex items-center gap-1">
               <input type="radio" name="setup" value="self" checked={formData.setupMethod === 'self'} onChange={() => handleChange('setupMethod', 'self')} />
@@ -110,9 +110,9 @@ export default function ParticipantWizard() {
       {step === 3 && (
         <div className="flex flex-col gap-2">
           <h2 className="text-lg font-bold">Address & Emergency</h2>
-          <input className="border p-2" placeholder="Home Address" value={formData.address} onChange={(e) => handleChange('address', e.target.value)} />
-          <input className="border p-2" placeholder="Emergency Contact Name" value={formData.emergencyContact} onChange={(e) => handleChange('emergencyContact', e.target.value)} />
-          <input className="border p-2" placeholder="Emergency Contact Phone" value={formData.emergencyPhone} onChange={(e) => handleChange('emergencyPhone', e.target.value)} />
+          <input className="border p-2 text-black" placeholder="Home Address" value={formData.address} onChange={(e) => handleChange('address', e.target.value)} />
+          <input className="border p-2 text-black" placeholder="Emergency Contact Name" value={formData.emergencyContact} onChange={(e) => handleChange('emergencyContact', e.target.value)} />
+          <input className="border p-2 text-black" placeholder="Emergency Contact Phone" value={formData.emergencyPhone} onChange={(e) => handleChange('emergencyPhone', e.target.value)} />
           <button className="bg-blue-500 text-white p-2" onClick={() => setStep(4)}>
             Next
           </button>

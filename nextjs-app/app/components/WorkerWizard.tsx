@@ -76,10 +76,10 @@ export default function WorkerWizard() {
       {step === 1 && (
         <div className="flex flex-col gap-2">
           <h2 className="text-lg font-bold">Account Setup</h2>
-          <input className="border p-2" placeholder="Name" value={form.name} onChange={(e) => handleChange('name', e.target.value)} />
-          <input className="border p-2" type="email" placeholder="Email" value={form.email} onChange={(e) => handleChange('email', e.target.value)} />
-          <input className="border p-2" placeholder="Phone" value={form.phone} onChange={(e) => handleChange('phone', e.target.value)} />
-          <input className="border p-2" type="password" placeholder="Password" value={form.password} onChange={(e) => handleChange('password', e.target.value)} />
+          <input className="border p-2 text-black" placeholder="Name" value={form.name} onChange={(e) => handleChange('name', e.target.value)} />
+          <input className="border p-2 text-black" type="email" placeholder="Email" value={form.email} onChange={(e) => handleChange('email', e.target.value)} />
+          <input className="border p-2 text-black" placeholder="Phone" value={form.phone} onChange={(e) => handleChange('phone', e.target.value)} />
+          <input className="border p-2 text-black" type="password" placeholder="Password" value={form.password} onChange={(e) => handleChange('password', e.target.value)} />
           <button className="bg-blue-500 text-white p-2" onClick={createAccount}>Next</button>
         </div>
       )}
@@ -87,15 +87,15 @@ export default function WorkerWizard() {
       {step === 2 && (
         <div className="flex flex-col gap-2">
           <h2 className="text-lg font-bold">ABN Details</h2>
-          <input className="border p-2" placeholder="Operating Name" value={form.operatingName} onChange={(e) => handleChange('operatingName', e.target.value)} />
-          <input className="border p-2" placeholder="ABN" value={form.abn} onChange={(e) => handleChange('abn', e.target.value)} />
+          <input className="border p-2 text-black" placeholder="Operating Name" value={form.operatingName} onChange={(e) => handleChange('operatingName', e.target.value)} />
+          <input className="border p-2 text-black" placeholder="ABN" value={form.abn} onChange={(e) => handleChange('abn', e.target.value)} />
           <label className="flex gap-2 items-center">
             <input type="checkbox" checked={form.gst} onChange={(e) => handleChange('gst', e.target.checked)} />
             <span>GST Registered</span>
           </label>
-          <input className="border p-2" placeholder="BSB" value={form.bsb} onChange={(e) => handleChange('bsb', e.target.value)} />
-          <input className="border p-2" placeholder="Account Number" value={form.account} onChange={(e) => handleChange('account', e.target.value)} />
-          <input className="border p-2" placeholder="Address" value={form.address} onChange={(e) => handleChange('address', e.target.value)} />
+          <input className="border p-2 text-black" placeholder="BSB" value={form.bsb} onChange={(e) => handleChange('bsb', e.target.value)} />
+          <input className="border p-2 text-black" placeholder="Account Number" value={form.account} onChange={(e) => handleChange('account', e.target.value)} />
+          <input className="border p-2 text-black" placeholder="Address" value={form.address} onChange={(e) => handleChange('address', e.target.value)} />
           <button className="bg-blue-500 text-white p-2" onClick={() => setStep(3)}>Next</button>
         </div>
       )}

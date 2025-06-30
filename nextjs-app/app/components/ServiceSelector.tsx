@@ -31,7 +31,7 @@ export default function ServiceSelector({ services, value, rate, onChange }: Pro
   return (
     <div>
       <select
-        className="border p-2 w-full"
+        className="border p-2 w-full text-black"
         value={value}
         onChange={(e) => onChange(e.target.value, rate)}
       >
@@ -44,7 +44,7 @@ export default function ServiceSelector({ services, value, rate, onChange }: Pro
       <label className="flex items-center gap-2 mt-2">
         <span>Rate</span>
         <input
-          className="border p-2 flex-1"
+          className="border p-2 flex-1 text-black"
           type="number"
           value={rate}
           onChange={(e) => handleRateChange(Number(e.target.value))}

@@ -36,7 +36,7 @@ export default function LoginPage() {
         <h1 className="text-2xl font-bold text-center">Login</h1>
         {error && <p className="text-red-500">{error}</p>}
         <input
-          className="border p-2 rounded"
+          className="border p-2 rounded text-black"
           type="email"
           placeholder="Email"
           value={email}
@@ -44,7 +44,7 @@ export default function LoginPage() {
           required
         />
         <input
-          className="border p-2 rounded"
+          className="border p-2 rounded text-black"
           type="password"
           placeholder="Password"
           value={password}

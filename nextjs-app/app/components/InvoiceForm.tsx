@@ -36,7 +36,7 @@ export default function InvoiceForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-      <select className="border p-2" value={clientId} onChange={(e) => setClientId(e.target.value)}>
+      <select className="border p-2 text-black" value={clientId} onChange={(e) => setClientId(e.target.value)}>
         <option value="">Select Client</option>
         {clients.map((c) => (
           <option key={c.id} value={c.id}>
@@ -44,7 +44,7 @@ export default function InvoiceForm() {
           </option>
         ))}
       </select>
-      <input className="border p-2" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      <input className="border p-2 text-black" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
       <ServiceSelector
         services={catalogue}
         value={serviceCode}

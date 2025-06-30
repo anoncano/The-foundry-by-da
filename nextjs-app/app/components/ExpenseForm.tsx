@@ -23,20 +23,20 @@ export default function ExpenseForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-      <input
-        className="border p-2"
-        type="number"
-        placeholder="Amount"
-        value={amount}
-        onChange={(e) => setAmount(Number(e.target.value))}
-      />
-      <input
-        className="border p-2"
-        placeholder="Description"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-      />
-      <select className="border p-2" value={category} onChange={(e) => setCategory(e.target.value)}>
+        <input
+          className="border p-2 text-black"
+          type="number"
+          placeholder="Amount"
+          value={amount}
+          onChange={(e) => setAmount(Number(e.target.value))}
+        />
+        <input
+          className="border p-2 text-black"
+          placeholder="Description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+        <select className="border p-2 text-black" value={category} onChange={(e) => setCategory(e.target.value)}>
         <option value="general">General</option>
         <option value="travel">Travel</option>
         <option value="equipment">Equipment</option>

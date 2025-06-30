@@ -24,3 +24,10 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ensure form inputs are readable across themes */
+input,
+select,
+textarea {
+  color: #000;
+}

@@ -1,6 +1,6 @@
 # NDIS Shift Logging and Invoicing Demo
 
-This app demonstrates a small Next.js + Firebase setup for logging shifts and creating invoices for NDIS workers and participants.
+This app demonstrates a small Next.js + Firebase setup for logging shifts and creating invoices for NDIS workers and participants. Use `/signup/participant` or `/signup/worker` to access the onboarding wizards.
 
 ## Setup
 

@@ -14,11 +14,11 @@ export default function ClientForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-      <input
-        className="border p-2"
-        placeholder="Client Name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
+        <input
+          className="border p-2 text-black"
+          placeholder="Client Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
       />
       <button type="submit" className="bg-blue-500 text-white p-2">Save</button>
     </form>
