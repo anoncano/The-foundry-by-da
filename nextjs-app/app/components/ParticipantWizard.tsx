@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { addDoc, collection } from 'firebase/firestore';
-import { db } from '@/firebase/firebase';
+import { addDoc, collection, doc, setDoc } from 'firebase/firestore';
+import { auth, db } from '@/firebase/firebase';
 import ServiceSelector from './ServiceSelector';
 import { getNDIACatalogue } from '@/lib/getNDIACatalogue';
 
@@ -49,7 +49,12 @@ export default function ParticipantWizard() {
   };
 
   const saveParticipant = async () => {
-    await addDoc(collection(db, 'participants'), formData);
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      await setDoc(doc(db, 'participants', uid), formData);
+    } else {
+      await addDoc(collection(db, 'participants'), formData);
+    }
     setStep(4);
   };
 
@@ -102,7 +107,14 @@ export default function ParticipantWizard() {
               Assisted
             </label>
           </div>
-          <ServiceSelector services={catalogue} />
+          <ServiceSelector
+            services={catalogue}
+            value={formData.serviceCode}
+            rate={formData.rate}
+            onChange={(code, rate) => {
+              setFormData({ ...formData, serviceCode: code, rate });
+            }}
+          />
           <button className="bg-green-600 text-white p-2" onClick={saveParticipant}>
             Submit
           </button>

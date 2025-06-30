@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { addDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '@/firebase/firebase';
 import ServiceSelector from './ServiceSelector';
+import { getNDIACatalogue } from '@/lib/getNDIACatalogue';
 import { createInvoicePDF } from '@/lib/createInvoicePDF';
 
 interface Client {
@@ -15,12 +16,15 @@ export default function InvoiceForm() {
   const [clientId, setClientId] = useState('');
   const [date, setDate] = useState('');
   const [serviceCode, setServiceCode] = useState('');
+  const [rate, setRate] = useState(0);
+  const [catalogue, setCatalogue] = useState<{ code: string; name: string; tiers: { name: string; maxRate: number }[] }[]>([]);
   const [amount, setAmount] = useState(0);
 
   useEffect(() => {
     getDocs(collection(db, 'clients')).then((snap) => {
       setClients(snap.docs.map((d) => ({ id: d.id, ...(d.data() as { name: string }) })));
     });
+    getNDIACatalogue('2025-2026').then((c) => setCatalogue(c.services));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,9 +45,16 @@ export default function InvoiceForm() {
         ))}
       </select>
       <input className="border p-2" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-      <input className="border p-2" placeholder="Service Code" value={serviceCode} onChange={(e) => setServiceCode(e.target.value)} />
-      <input className="border p-2" type="number" value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
-      <ServiceSelector services={[]} />
+      <ServiceSelector
+        services={catalogue}
+        value={serviceCode}
+        rate={rate}
+        onChange={(code, r) => {
+          setServiceCode(code);
+          setRate(r);
+          setAmount(r);
+        }}
+      />
       <button type="submit" className="bg-blue-500 text-white p-2">
         Save Invoice
       </button>
