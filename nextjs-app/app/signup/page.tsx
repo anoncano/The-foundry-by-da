@@ -41,7 +41,7 @@ export default function SignUpPage() {
         <h1 className="text-2xl font-bold text-center">Sign Up</h1>
         {error && <p className="text-red-500">{error}</p>}
         <input
-          className="border p-2"
+          className="border p-2 rounded"
           type="email"
           placeholder="Email"
           value={email}
@@ -49,7 +49,7 @@ export default function SignUpPage() {
           required
         />
         <input
-          className="border p-2"
+          className="border p-2 rounded"
           type="password"
           placeholder="Password"
           value={password}
@@ -57,7 +57,7 @@ export default function SignUpPage() {
           required
         />
         <select
-          className="border p-2"
+          className="border p-2 rounded"
           value={role}
           onChange={(e) => setRole(e.target.value)}
         >
@@ -65,7 +65,12 @@ export default function SignUpPage() {
           <option value="worker">Worker</option>
           <option value="admin">Admin</option>
         </select>
-        <button type="submit" className="bg-blue-500 text-white p-2">Sign Up</button>
+        <button
+          type="submit"
+          className="bg-green-600 text-white p-2 rounded hover:bg-green-700"
+        >
+          Sign Up
+        </button>
       </form>
     </div>
   );
