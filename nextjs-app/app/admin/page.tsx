@@ -34,16 +34,18 @@ export default function AdminPage() {
   }, [year]);
 
   useEffect(() => {
-    getDoc(doc(db, 'settings', 'smsPricing')).then((snap) => {
-      if (snap.exists()) {
-        setPricing({
-          inboundSms: snap.data().inboundSms ?? 0,
-          outboundSms: snap.data().outboundSms ?? 0,
-          inboundMms: snap.data().inboundMms ?? 0,
-          outboundMms: snap.data().outboundMms ?? 0,
-        });
-      }
-    });
+    getDoc(doc(db, 'settings', 'smsPricing'))
+      .then((snap) => {
+        if (snap.exists()) {
+          setPricing({
+            inboundSms: snap.data().inboundSms ?? 0,
+            outboundSms: snap.data().outboundSms ?? 0,
+            inboundMms: snap.data().inboundMms ?? 0,
+            outboundMms: snap.data().outboundMms ?? 0,
+          });
+        }
+      })
+      .catch(() => setStatus('Failed to load pricing'));
   }, []);
 
   useEffect(() => {
@@ -54,19 +56,21 @@ export default function AdminPage() {
       where('createdAt', '>=', start),
       where('createdAt', '<=', end)
     );
-    getDocs(q).then((snap) => {
-      let total = 0;
-      const map = new Map<string, number>();
-      snap.forEach((d) => {
-        const data = d.data() as { uid?: string; cost?: number };
-        const uid = data.uid ?? 'unknown';
-        const cost = data.cost ?? 0;
-        total += cost;
-        map.set(uid, (map.get(uid) ?? 0) + cost);
-      });
-      setTotalCost(total);
-      setUserTotals(Array.from(map.entries()).map(([uid, total]) => ({ uid, total })));
-    });
+    getDocs(q)
+      .then((snap) => {
+        let total = 0;
+        const map = new Map<string, number>();
+        snap.forEach((d) => {
+          const data = d.data() as { uid?: string; cost?: number };
+          const uid = data.uid ?? 'unknown';
+          const cost = data.cost ?? 0;
+          total += cost;
+          map.set(uid, (map.get(uid) ?? 0) + cost);
+        });
+        setTotalCost(total);
+        setUserTotals(Array.from(map.entries()).map(([uid, total]) => ({ uid, total })));
+      })
+      .catch(() => setStatus('Failed to load usage'));
   }, [startDate, endDate]);
 
   const handleUpload = async () => {
