@@ -2,7 +2,16 @@
 import { useEffect, useState } from "react";
 import { uploadNDIACatalogue } from "@/firebase/uploadNDIACatalogue";
 import { getNDIACatalogue } from "@/lib/getNDIACatalogue";
-import { collection, getDocs } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+  Timestamp,
+  doc,
+  getDoc,
+  setDoc,
+} from "firebase/firestore";
 import { db } from "@/firebase/firebase";
 import { firebaseConfig } from "@/firebase/firebase";
 
@@ -11,24 +20,54 @@ export default function AdminPage() {
   const [catalogue, setCatalogue] = useState("{\n  \"services\": []\n}");
   const [status, setStatus] = useState("");
   const [services, setServices] = useState<{ code: string; name: string }[]>([]);
-  const [messages, setMessages] = useState<{ to: string; body: string; cost: number }[]>([]);
+  const [userTotals, setUserTotals] = useState<{ uid: string; total: number }[]>([]);
   const [totalCost, setTotalCost] = useState(0);
+  const [pricing, setPricing] = useState({ inboundSms: 0, outboundSms: 0, inboundMms: 0, outboundMms: 0 });
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
+  const [startDate, setStartDate] = useState(firstDay);
+  const [endDate, setEndDate] = useState(lastDay);
 
   useEffect(() => {
     getNDIACatalogue(year).then((c) => setServices(c.services));
-    getDocs(collection(db, "messages")).then((snap) => {
+  }, [year]);
+
+  useEffect(() => {
+    getDoc(doc(db, 'settings', 'smsPricing')).then((snap) => {
+      if (snap.exists()) {
+        setPricing({
+          inboundSms: snap.data().inboundSms ?? 0,
+          outboundSms: snap.data().outboundSms ?? 0,
+          inboundMms: snap.data().inboundMms ?? 0,
+          outboundMms: snap.data().outboundMms ?? 0,
+        });
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    const start = Timestamp.fromDate(new Date(startDate));
+    const end = Timestamp.fromDate(new Date(endDate));
+    const q = query(
+      collection(db, 'messages'),
+      where('createdAt', '>=', start),
+      where('createdAt', '<=', end)
+    );
+    getDocs(q).then((snap) => {
       let total = 0;
-      const rows: { to: string; body: string; cost: number }[] = [];
+      const map = new Map<string, number>();
       snap.forEach((d) => {
-        const data = d.data() as { to?: string; body?: string; cost?: number };
+        const data = d.data() as { uid?: string; cost?: number };
+        const uid = data.uid ?? 'unknown';
         const cost = data.cost ?? 0;
         total += cost;
-        rows.push({ to: data.to ?? "", body: data.body ?? "", cost });
+        map.set(uid, (map.get(uid) ?? 0) + cost);
       });
-      setMessages(rows);
       setTotalCost(total);
+      setUserTotals(Array.from(map.entries()).map(([uid, total]) => ({ uid, total })));
     });
-  }, [year]);
+  }, [startDate, endDate]);
 
   const handleUpload = async () => {
     try {
@@ -65,6 +104,51 @@ export default function AdminPage() {
           {status && <p className="text-green-600">{status}</p>}
         </div>
         <div className="flex flex-col gap-2">
+          <h2 className="font-semibold">SMS Pricing</h2>
+          <label className="text-sm">Inbound SMS ($)
+            <input
+              className="border p-1 w-full"
+              type="number"
+              step="0.01"
+              value={pricing.inboundSms}
+              onChange={(e) => setPricing({ ...pricing, inboundSms: parseFloat(e.target.value) })}
+            />
+          </label>
+          <label className="text-sm">Outbound SMS ($)
+            <input
+              className="border p-1 w-full"
+              type="number"
+              step="0.01"
+              value={pricing.outboundSms}
+              onChange={(e) => setPricing({ ...pricing, outboundSms: parseFloat(e.target.value) })}
+            />
+          </label>
+          <label className="text-sm">Inbound MMS ($)
+            <input
+              className="border p-1 w-full"
+              type="number"
+              step="0.01"
+              value={pricing.inboundMms}
+              onChange={(e) => setPricing({ ...pricing, inboundMms: parseFloat(e.target.value) })}
+            />
+          </label>
+          <label className="text-sm">Outbound MMS ($)
+            <input
+              className="border p-1 w-full"
+              type="number"
+              step="0.01"
+              value={pricing.outboundMms}
+              onChange={(e) => setPricing({ ...pricing, outboundMms: parseFloat(e.target.value) })}
+            />
+          </label>
+          <button
+            onClick={() => setDoc(doc(db, 'settings', 'smsPricing'), pricing)}
+            className="bg-blue-500 text-white p-2"
+          >
+            Save Pricing
+          </button>
+        </div>
+        <div className="flex flex-col gap-2">
           <h2 className="font-semibold">Current Services ({year})</h2>
           <ul className="border p-2 h-40 overflow-auto text-sm space-y-1">
             {services.map((s) => (
@@ -77,33 +161,33 @@ export default function AdminPage() {
           </ul>
         </div>
         <div className="flex flex-col gap-2">
-          <h2 className="font-semibold">Outbound Messages</h2>
-          <table className="border text-sm">
+          <h2 className="font-semibold">Usage ({startDate} - {endDate})</h2>
+          <div className="flex gap-2 text-sm">
+            <input type="date" className="border p-1" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            <input type="date" className="border p-1" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+          </div>
+          <table className="border text-sm mt-2">
             <thead>
               <tr className="bg-gray-100">
-                <th className="px-2">To</th>
-                <th className="px-2">Body</th>
-                <th className="px-2">Cost</th>
+                <th className="px-2">User</th>
+                <th className="px-2">Total Cost</th>
               </tr>
             </thead>
             <tbody>
-              {messages.map((m, i) => (
-                <tr key={i} className="border-t">
-                  <td className="px-2 whitespace-nowrap">{m.to}</td>
-                  <td className="px-2">{m.body}</td>
-                  <td className="px-2 text-right">${m.cost.toFixed(2)}</td>
+              {userTotals.map((u) => (
+                <tr key={u.uid} className="border-t">
+                  <td className="px-2">{u.uid}</td>
+                  <td className="px-2 text-right">${u.total.toFixed(2)}</td>
                 </tr>
               ))}
-              {messages.length === 0 && (
+              {userTotals.length === 0 && (
                 <tr>
-                  <td className="px-2" colSpan={3}>
-                    No messages
-                  </td>
+                  <td className="px-2" colSpan={2}>No usage</td>
                 </tr>
               )}
             </tbody>
           </table>
-          <p className="text-sm">Total Cost: ${totalCost.toFixed(2)}</p>
+          <p className="text-sm">Period Total: ${totalCost.toFixed(2)}</p>
         </div>
       </div>
     </div>

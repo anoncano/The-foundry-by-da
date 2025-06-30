@@ -1,26 +1,55 @@
 'use client';
 import { useState } from 'react';
 import { handleIncomingSMS } from '@/lib/smsHooks';
-import { addDoc, collection } from 'firebase/firestore';
-import { db } from '@/firebase/firebase';
+import {
+  addDoc,
+  collection,
+  doc,
+  getDoc,
+  serverTimestamp,
+} from 'firebase/firestore';
+import { auth, db } from '@/firebase/firebase';
 
 export default function SMSPlaceholder() {
   const [incoming, setIncoming] = useState('');
   const [outgoing, setOutgoing] = useState('');
   const [to, setTo] = useState('');
 
-  const sendIncoming = () => {
+  const sendIncoming = async () => {
     handleIncomingSMS(incoming);
+    try {
+      const snap = await getDoc(doc(db, 'settings', 'smsPricing'));
+      const cost = snap.exists() ? snap.data().inboundSms || 0 : 0;
+      await addDoc(collection(db, 'messages'), {
+        body: incoming,
+        uid: auth.currentUser?.uid ?? null,
+        direction: 'inbound',
+        cost,
+        createdAt: serverTimestamp(),
+      });
+    } catch {
+      // ignore
+    }
     setIncoming('');
   };
 
   const sendOutgoing = async () => {
     if (!to || !outgoing) return;
+    let cost = 0;
+    try {
+      const snap = await getDoc(doc(db, 'settings', 'smsPricing'));
+      cost = snap.exists() ? snap.data().outboundSms || 0 : 0;
+    } catch {
+      cost = 0;
+    }
     await addDoc(collection(db, 'messages'), {
       to,
       body: outgoing,
-      cost: 0.07,
+      uid: auth.currentUser?.uid ?? null,
+      direction: 'outbound',
+      cost,
       status: 'queued',
+      createdAt: serverTimestamp(),
     });
     setOutgoing('');
     setTo('');
