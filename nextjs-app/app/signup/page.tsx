@@ -17,17 +17,19 @@ export default function SignUpPage() {
     e.preventDefault();
     setError('');
     try {
+      if (role === 'worker') {
+        router.push('/signup/worker');
+        return;
+      }
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await setDoc(doc(db, 'users', cred.user.uid), {
         role,
         email,
       });
-      if (role === 'worker') {
-        router.push('/worker/signup');
-      } else if (role === 'admin') {
+      if (role === 'admin') {
         router.push('/admin');
       } else {
-        router.push('/participant/signup');
+        router.push('/signup/participant');
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
