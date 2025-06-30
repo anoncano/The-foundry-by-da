@@ -23,4 +23,10 @@ This app demonstrates a small Next.js + Firebase setup for logging shifts and cr
 - Worker dashboard with clients, shifts, invoices and expenses
 - Admin area for uploading NDIS support catalogues
 
+### Twilio SMS
+
+The included Firebase extension watches the `messages` collection for outbound
+SMS. Each queued message should include a `to`, `body`, and `cost` field. The
+admin dashboard displays these messages and their total cost.
+
 This project uses Tailwind CSS for styling and Firebase for authentication and storage. The PDF generation and SMS features are placeholders for future implementation.
