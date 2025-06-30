@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/firebase/firebase';
+import { getUserRole } from '@/lib/getUserRole';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
@@ -14,8 +15,15 @@ export default function LoginPage() {
     e.preventDefault();
     setError('');
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      router.push('/client');
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const role = await getUserRole(cred.user.uid);
+      if (role === 'worker') {
+        router.push('/worker/dashboard');
+      } else if (role === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push('/client');
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);

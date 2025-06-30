@@ -2,11 +2,14 @@
 import { useState } from 'react';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '@/firebase/firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '@/firebase/firebase';
 import { useRouter } from 'next/navigation';
 
 export default function SignUpPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState('participant');
   const [error, setError] = useState('');
   const router = useRouter();
 
@@ -14,8 +17,18 @@ export default function SignUpPage() {
     e.preventDefault();
     setError('');
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      router.push('/client');
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      await setDoc(doc(db, 'users', cred.user.uid), {
+        role,
+        email,
+      });
+      if (role === 'worker') {
+        router.push('/worker/dashboard');
+      } else if (role === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push('/participant/signup');
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
@@ -43,6 +56,15 @@ export default function SignUpPage() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
+        <select
+          className="border p-2"
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+        >
+          <option value="participant">Participant</option>
+          <option value="worker">Worker</option>
+          <option value="admin">Admin</option>
+        </select>
         <button type="submit" className="bg-blue-500 text-white p-2">Sign Up</button>
       </form>
     </div>
