@@ -6,6 +6,13 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import ServiceSelector from './ServiceSelector';
 import { getNDIACatalogue } from '@/lib/getNDIACatalogue';
 
+export const participantSteps = [
+  'Personal Info',
+  'Plan Details',
+  'Address & Emergency',
+  'Service Selection',
+];
+
 interface FormData {
   name: string;
   dob: string;
@@ -19,19 +26,20 @@ interface FormData {
   emergencyContact: string;
   emergencyPhone: string;
   setupMethod: 'self' | 'assisted';
+  selfManaged: boolean;
   serviceCode: string;
   rate: number;
 }
 
-export default function ParticipantWizard() {
+export default function ParticipantWizard({
+  onStepChange,
+  onComplete,
+}: {
+  onStepChange?: (n: number) => void;
+  onComplete?: () => void;
+}) {
   const [step, setStep] = useState(1);
   const [uid, setUid] = useState('');
-  const stepLabels = [
-    'Personal Info',
-    'Plan Details',
-    'Address & Emergency',
-    'Service Selection',
-  ];
   const [catalogue, setCatalogue] = useState<{ code: string; name: string; tiers: { name: string; maxRate: number }[] }[]>([]);
   const [formData, setFormData] = useState<FormData>({
     name: '',
@@ -46,6 +54,7 @@ export default function ParticipantWizard() {
     emergencyContact: '',
     emergencyPhone: '',
     setupMethod: 'self',
+    selfManaged: false,
     serviceCode: '',
     rate: 0,
   });
@@ -54,7 +63,14 @@ export default function ParticipantWizard() {
     getNDIACatalogue('2025-2026').then((c) => setCatalogue(c.services));
   }, []);
 
-  const handleChange = (field: keyof FormData, value: string | number) => {
+  useEffect(() => {
+    onStepChange?.(step);
+    if (step === participantSteps.length + 1) {
+      onComplete?.();
+    }
+  }, [step, onStepChange, onComplete]);
+
+  const handleChange = (field: keyof FormData, value: string | number | boolean) => {
     setFormData({ ...formData, [field]: value });
   };
 
@@ -81,30 +97,20 @@ export default function ParticipantWizard() {
     } else {
       await addDoc(collection(db, 'participants'), data);
     }
-    setStep(5);
+    setStep(participantSteps.length + 1);
   };
 
   return (
-    <div className="p-4 border rounded flex flex-col gap-4 max-w-xl mx-auto">
-      <div className="flex justify-between text-sm text-gray-600">
-        {stepLabels.map((label, idx) => (
-          <span
-            key={label}
-            className={idx + 1 === step ? 'font-semibold text-black' : ''}
-          >
-            {idx + 1}. {label}
-          </span>
-        ))}
-      </div>
+    <div className="p-4 border rounded flex flex-col gap-4 bg-white max-w-xl mx-auto">
       {step === 1 && (
         <div className="flex flex-col gap-2">
           <h2 className="text-lg font-bold">Personal Info</h2>
-          <input className="border p-2 text-black" placeholder="Full Name" value={formData.name} onChange={(e) => handleChange('name', e.target.value)} />
-          <input className="border p-2 text-black" type="date" value={formData.dob} onChange={(e) => handleChange('dob', e.target.value)} />
-          <input className="border p-2 text-black" placeholder="NDIS Number" value={formData.ndisNumber} onChange={(e) => handleChange('ndisNumber', e.target.value)} />
-          <input className="border p-2 text-black" type="email" placeholder="Email" value={formData.email} onChange={(e) => handleChange('email', e.target.value)} />
-          <input className="border p-2 text-black" type="password" placeholder="Password" value={formData.password} onChange={(e) => handleChange('password', e.target.value)} />
-          <button className="bg-blue-500 text-white p-2" onClick={createAccount}>
+          <input className="border p-2 rounded" placeholder="Full Name" value={formData.name} onChange={(e) => handleChange('name', e.target.value)} />
+          <input className="border p-2 rounded" type="date" value={formData.dob} onChange={(e) => handleChange('dob', e.target.value)} />
+          <input className="border p-2 rounded" placeholder="NDIS Number" value={formData.ndisNumber} onChange={(e) => handleChange('ndisNumber', e.target.value)} />
+          <input className="border p-2 rounded" type="email" placeholder="Email" value={formData.email} onChange={(e) => handleChange('email', e.target.value)} />
+          <input className="border p-2 rounded" type="password" placeholder="Password" value={formData.password} onChange={(e) => handleChange('password', e.target.value)} />
+          <button className="bg-blue-600 text-white p-2 rounded" onClick={createAccount}>
             Next
           </button>
         </div>
@@ -113,15 +119,17 @@ export default function ParticipantWizard() {
       {step === 2 && (
         <div className="flex flex-col gap-2">
           <h2 className="text-lg font-bold">Plan Details</h2>
-          <label className="flex gap-2 items-center">
-            <span>Plan Start</span>
-            <input className="border p-2 text-black" type="date" value={formData.planStart} onChange={(e) => handleChange('planStart', e.target.value)} />
+          <label className="text-sm">Plan Start
+            <input className="border p-2 rounded w-full" type="date" value={formData.planStart} onChange={(e) => handleChange('planStart', e.target.value)} />
           </label>
-          <label className="flex gap-2 items-center">
-            <span>Plan End</span>
-            <input className="border p-2 text-black" type="date" value={formData.planEnd} onChange={(e) => handleChange('planEnd', e.target.value)} />
+          <label className="text-sm">Plan End
+            <input className="border p-2 rounded w-full" type="date" value={formData.planEnd} onChange={(e) => handleChange('planEnd', e.target.value)} />
           </label>
-          <input className="border p-2 text-black" placeholder="Billing Email" value={formData.billingEmail} onChange={(e) => handleChange('billingEmail', e.target.value)} />
+          <input className="border p-2 rounded" placeholder="Billing Email" value={formData.billingEmail} onChange={(e) => handleChange('billingEmail', e.target.value)} />
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={formData.selfManaged} onChange={(e) => handleChange('selfManaged', e.target.checked)} />
+            Self Managed Plan
+          </label>
           <div className="flex gap-2">
             <label className="flex items-center gap-1">
               <input type="radio" name="setup" value="self" checked={formData.setupMethod === 'self'} onChange={() => handleChange('setupMethod', 'self')} />
@@ -136,10 +144,10 @@ export default function ParticipantWizard() {
             <p className="text-sm text-gray-600">Invite link: https://example.com/invite/abc123</p>
           )}
           <div className="flex gap-2">
-            <button className="bg-gray-200 p-2" onClick={() => setStep(1)}>
+            <button className="bg-gray-200 p-2 rounded" onClick={() => setStep(1)}>
               Back
             </button>
-            <button className="bg-blue-500 text-white p-2" onClick={() => setStep(3)}>
+            <button className="bg-blue-600 text-white p-2 rounded" onClick={() => setStep(3)}>
               Next
             </button>
           </div>
@@ -149,14 +157,14 @@ export default function ParticipantWizard() {
       {step === 3 && (
         <div className="flex flex-col gap-2">
           <h2 className="text-lg font-bold">Address & Emergency</h2>
-          <input className="border p-2 text-black" placeholder="Home Address" value={formData.address} onChange={(e) => handleChange('address', e.target.value)} />
-          <input className="border p-2 text-black" placeholder="Emergency Contact Name" value={formData.emergencyContact} onChange={(e) => handleChange('emergencyContact', e.target.value)} />
-          <input className="border p-2 text-black" placeholder="Emergency Contact Phone" value={formData.emergencyPhone} onChange={(e) => handleChange('emergencyPhone', e.target.value)} />
+          <input className="border p-2 rounded" placeholder="Home Address" value={formData.address} onChange={(e) => handleChange('address', e.target.value)} />
+          <input className="border p-2 rounded" placeholder="Emergency Contact Name" value={formData.emergencyContact} onChange={(e) => handleChange('emergencyContact', e.target.value)} />
+          <input className="border p-2 rounded" placeholder="Emergency Contact Phone" value={formData.emergencyPhone} onChange={(e) => handleChange('emergencyPhone', e.target.value)} />
           <div className="flex gap-2">
-            <button className="bg-gray-200 p-2" onClick={() => setStep(2)}>
+            <button className="bg-gray-200 p-2 rounded" onClick={() => setStep(2)}>
               Back
             </button>
-            <button className="bg-blue-500 text-white p-2" onClick={() => setStep(4)}>
+            <button className="bg-blue-600 text-white p-2 rounded" onClick={() => setStep(4)}>
               Next
             </button>
           </div>
@@ -175,17 +183,19 @@ export default function ParticipantWizard() {
             }}
           />
           <div className="flex gap-2">
-            <button className="bg-gray-200 p-2" onClick={() => setStep(3)}>
+            <button className="bg-gray-200 p-2 rounded" onClick={() => setStep(3)}>
               Back
             </button>
-            <button className="bg-green-600 text-white p-2" onClick={saveParticipant}>
+            <button className="bg-green-600 text-white p-2 rounded" onClick={saveParticipant}>
               Submit
             </button>
           </div>
         </div>
       )}
 
-      {step === 5 && <p className="text-green-700 font-semibold">Signup complete!</p>}
+      {step === participantSteps.length + 1 && (
+        <p className="text-green-700 font-semibold">Signup complete!</p>
+      )}
     </div>
   );
 }
