@@ -24,6 +24,12 @@ interface FormData {
 
 export default function ParticipantWizard() {
   const [step, setStep] = useState(1);
+  const stepLabels = [
+    'Personal Info',
+    'Plan Details',
+    'Address & Emergency',
+    'Service Selection',
+  ];
   const [catalogue, setCatalogue] = useState<{ code: string; name: string; tiers: { name: string; maxRate: number }[] }[]>([]);
   const [formData, setFormData] = useState<FormData>({
     name: '',
@@ -62,6 +68,16 @@ export default function ParticipantWizard() {
 
   return (
     <div className="p-4 border rounded flex flex-col gap-4 max-w-xl mx-auto">
+      <div className="flex justify-between text-sm text-gray-600">
+        {stepLabels.map((label, idx) => (
+          <span
+            key={label}
+            className={idx + 1 === step ? 'font-semibold text-black' : ''}
+          >
+            {idx + 1}. {label}
+          </span>
+        ))}
+      </div>
       {step === 1 && (
         <div className="flex flex-col gap-2">
           <h2 className="text-lg font-bold">Personal Info</h2>
@@ -101,9 +117,14 @@ export default function ParticipantWizard() {
           {formData.setupMethod === 'assisted' && (
             <p className="text-sm text-gray-600">Invite link: https://example.com/invite/abc123</p>
           )}
-          <button className="bg-blue-500 text-white p-2" onClick={() => setStep(3)}>
-            Next
-          </button>
+          <div className="flex gap-2">
+            <button className="bg-gray-200 p-2" onClick={() => setStep(1)}>
+              Back
+            </button>
+            <button className="bg-blue-500 text-white p-2" onClick={() => setStep(3)}>
+              Next
+            </button>
+          </div>
         </div>
       )}
 
@@ -113,9 +134,14 @@ export default function ParticipantWizard() {
           <input className="border p-2 text-black" placeholder="Home Address" value={formData.address} onChange={(e) => handleChange('address', e.target.value)} />
           <input className="border p-2 text-black" placeholder="Emergency Contact Name" value={formData.emergencyContact} onChange={(e) => handleChange('emergencyContact', e.target.value)} />
           <input className="border p-2 text-black" placeholder="Emergency Contact Phone" value={formData.emergencyPhone} onChange={(e) => handleChange('emergencyPhone', e.target.value)} />
-          <button className="bg-blue-500 text-white p-2" onClick={() => setStep(4)}>
-            Next
-          </button>
+          <div className="flex gap-2">
+            <button className="bg-gray-200 p-2" onClick={() => setStep(2)}>
+              Back
+            </button>
+            <button className="bg-blue-500 text-white p-2" onClick={() => setStep(4)}>
+              Next
+            </button>
+          </div>
         </div>
       )}
 
@@ -130,9 +156,14 @@ export default function ParticipantWizard() {
               setFormData({ ...formData, serviceCode: code, rate });
             }}
           />
-          <button className="bg-green-600 text-white p-2" onClick={saveParticipant}>
-            Submit
-          </button>
+          <div className="flex gap-2">
+            <button className="bg-gray-200 p-2" onClick={() => setStep(3)}>
+              Back
+            </button>
+            <button className="bg-green-600 text-white p-2" onClick={saveParticipant}>
+              Submit
+            </button>
+          </div>
         </div>
       )}
 

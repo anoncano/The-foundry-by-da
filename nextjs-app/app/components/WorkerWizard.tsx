@@ -22,6 +22,7 @@ interface FormData {
 
 export default function WorkerWizard() {
   const [step, setStep] = useState(1);
+  const stepLabels = ['Account Setup', 'ABN Details', 'Dashboard Prep'];
   const [uid, setUid] = useState('');
   const [form, setForm] = useState<FormData>({
     name: '',
@@ -73,6 +74,16 @@ export default function WorkerWizard() {
 
   return (
     <div className="p-4 border rounded flex flex-col gap-4 max-w-xl mx-auto">
+      <div className="flex justify-between text-sm text-gray-600">
+        {stepLabels.map((label, idx) => (
+          <span
+            key={label}
+            className={idx + 1 === step ? 'font-semibold text-black' : ''}
+          >
+            {idx + 1}. {label}
+          </span>
+        ))}
+      </div>
       {step === 1 && (
         <div className="flex flex-col gap-2">
           <h2 className="text-lg font-bold">Account Setup</h2>
@@ -96,7 +107,14 @@ export default function WorkerWizard() {
           <input className="border p-2 text-black" placeholder="BSB" value={form.bsb} onChange={(e) => handleChange('bsb', e.target.value)} />
           <input className="border p-2 text-black" placeholder="Account Number" value={form.account} onChange={(e) => handleChange('account', e.target.value)} />
           <input className="border p-2 text-black" placeholder="Address" value={form.address} onChange={(e) => handleChange('address', e.target.value)} />
-          <button className="bg-blue-500 text-white p-2" onClick={() => setStep(3)}>Next</button>
+          <div className="flex gap-2">
+            <button className="bg-gray-200 p-2" onClick={() => setStep(1)}>
+              Back
+            </button>
+            <button className="bg-blue-500 text-white p-2" onClick={() => setStep(3)}>
+              Next
+            </button>
+          </div>
         </div>
       )}
 
@@ -111,7 +129,14 @@ export default function WorkerWizard() {
             <input type="checkbox" checked={form.automateInvoices} onChange={(e) => handleChange('automateInvoices', e.target.checked)} />
             <span>Automate Invoices</span>
           </label>
-          <button className="bg-green-600 text-white p-2" onClick={saveWorker}>Finish</button>
+          <div className="flex gap-2">
+            <button className="bg-gray-200 p-2" onClick={() => setStep(2)}>
+              Back
+            </button>
+            <button className="bg-green-600 text-white p-2" onClick={saveWorker}>
+              Finish
+            </button>
+          </div>
         </div>
       )}
     </div>
