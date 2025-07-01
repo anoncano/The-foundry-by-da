@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { addDoc, collection, doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/firebase/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import ServiceSelector from './ServiceSelector';
 import { getNDIACatalogue } from '@/lib/getNDIACatalogue';
 
@@ -24,6 +25,7 @@ interface FormData {
 
 export default function ParticipantWizard() {
   const [step, setStep] = useState(1);
+  const [uid, setUid] = useState('');
   const stepLabels = [
     'Personal Info',
     'Plan Details',
@@ -56,12 +58,28 @@ export default function ParticipantWizard() {
     setFormData({ ...formData, [field]: value });
   };
 
+  const createAccount = async () => {
+    const cred = await createUserWithEmailAndPassword(
+      auth,
+      formData.email,
+      formData.password
+    );
+    setUid(cred.user.uid);
+    await setDoc(doc(db, 'users', cred.user.uid), {
+      role: 'participant',
+      email: formData.email,
+    });
+    setStep(2);
+  };
+
   const saveParticipant = async () => {
-    const uid = auth.currentUser?.uid;
-    if (uid) {
-      await setDoc(doc(db, 'participants', uid), formData);
+    const id = uid || auth.currentUser?.uid;
+    const data = { ...formData };
+    delete (data as Partial<FormData>).password;
+    if (id) {
+      await setDoc(doc(db, 'participants', id), data);
     } else {
-      await addDoc(collection(db, 'participants'), formData);
+      await addDoc(collection(db, 'participants'), data);
     }
     setStep(5);
   };
@@ -86,7 +104,7 @@ export default function ParticipantWizard() {
           <input className="border p-2 text-black" placeholder="NDIS Number" value={formData.ndisNumber} onChange={(e) => handleChange('ndisNumber', e.target.value)} />
           <input className="border p-2 text-black" type="email" placeholder="Email" value={formData.email} onChange={(e) => handleChange('email', e.target.value)} />
           <input className="border p-2 text-black" type="password" placeholder="Password" value={formData.password} onChange={(e) => handleChange('password', e.target.value)} />
-          <button className="bg-blue-500 text-white p-2" onClick={() => setStep(2)}>
+          <button className="bg-blue-500 text-white p-2" onClick={createAccount}>
             Next
           </button>
         </div>
