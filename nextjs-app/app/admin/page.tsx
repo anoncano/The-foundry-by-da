@@ -14,6 +14,7 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase";
+import { recordAudit } from "@/lib/recordAudit";
 import { firebaseConfig } from "@/firebase/firebase";
 
 function AuditLogList() {
@@ -118,6 +119,7 @@ export default function AdminPage() {
       const data = JSON.parse(catalogue);
       await uploadNDIACatalogue(data, year);
       setStatus("Catalogue uploaded");
+      await recordAudit('uploaded catalogue');
     } catch {
       setStatus("Invalid JSON");
     }
@@ -138,6 +140,7 @@ export default function AdminPage() {
     if (!userId) return;
     await setDoc(doc(db, 'users', userId), { role }, { merge: true });
     setStatus('Role updated');
+    await recordAudit(`assigned role ${role} to ${userId}`);
   };
 
   return (
@@ -211,7 +214,10 @@ export default function AdminPage() {
             />
           </label>
           <button
-            onClick={() => setDoc(doc(db, 'settings', 'smsPricing'), pricing)}
+            onClick={async () => {
+              await setDoc(doc(db, 'settings', 'smsPricing'), pricing);
+              await recordAudit('updated sms pricing');
+            }}
             className="bg-blue-500 text-white p-2"
           >
             Save Pricing

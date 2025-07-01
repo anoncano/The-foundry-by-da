@@ -5,6 +5,7 @@ import { auth, db } from '@/firebase/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import ServiceSelector from './ServiceSelector';
 import { getNDIACatalogue } from '@/lib/getNDIACatalogue';
+import { recordAudit } from '@/lib/recordAudit';
 
 export const participantSteps = [
   'Personal Info',
@@ -85,6 +86,7 @@ export default function ParticipantWizard({
       role: 'participant',
       email: formData.email,
     });
+    await recordAudit('created participant account', cred.user.uid);
     setStep(2);
   };
 
@@ -97,11 +99,12 @@ export default function ParticipantWizard({
     } else {
       await addDoc(collection(db, 'participants'), data);
     }
+    await recordAudit('participant signed up', id ?? 'anon');
     setStep(participantSteps.length + 1);
   };
 
   return (
-    <div className="p-4 border rounded flex flex-col gap-4 bg-white max-w-xl mx-auto">
+    <div className="p-4 border rounded flex flex-col gap-4 bg-white dark:bg-gray-800 max-w-xl mx-auto">
       {step === 1 && (
         <div className="flex flex-col gap-3">
           <h2 className="text-lg font-bold">Personal Info</h2>

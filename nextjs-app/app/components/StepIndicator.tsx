@@ -9,9 +9,9 @@ export default function StepIndicator({ steps, current }: StepIndicatorProps) {
   const pct = steps.length > 1 ? (current - 1) / (steps.length - 1) : 0;
   return (
     <div className="mb-6">
-      <div className="relative h-2 bg-gray-300 rounded">
+      <div className="relative h-2 bg-gray-300 dark:bg-gray-700 rounded">
         <div
-          className="absolute top-0 left-0 h-2 bg-blue-600 rounded transition-all"
+          className="absolute top-0 left-0 h-2 bg-blue-600 dark:bg-blue-400 rounded transition-all"
           style={{ width: `${pct * 100}%` }}
         />
       </div>
@@ -21,10 +21,10 @@ export default function StepIndicator({ steps, current }: StepIndicatorProps) {
             <div
               className={`w-6 h-6 mx-auto rounded-full flex items-center justify-center font-semibold ${
                 idx + 1 === current
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-blue-600 dark:bg-blue-400 text-white'
                   : idx + 1 < current
-                  ? 'bg-blue-600 text-white opacity-70'
-                  : 'bg-gray-400 text-white'
+                  ? 'bg-blue-600 dark:bg-blue-400 text-white opacity-70'
+                  : 'bg-gray-400 dark:bg-gray-600 text-white'
               }`}
             >
               {idx + 1}

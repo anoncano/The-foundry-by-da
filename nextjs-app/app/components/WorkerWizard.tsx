@@ -4,6 +4,7 @@ import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/firebase/firebase';
 import { useRouter } from 'next/navigation';
+import { recordAudit } from '@/lib/recordAudit';
 
 export const workerSteps = ['Account Setup', 'ABN Details', 'Dashboard Prep'];
 
@@ -65,6 +66,7 @@ export default function WorkerWizard({
       role: 'worker',
       email: form.email,
     });
+    await recordAudit('created worker account', cred.user.uid);
     setStep(2);
   };
 
@@ -83,12 +85,13 @@ export default function WorkerWizard({
       clientManager: form.clientManager,
       automateInvoices: form.automateInvoices,
     });
+    await recordAudit('worker signed up', id);
     setStep(workerSteps.length + 1);
     router.push('/worker/dashboard');
   };
 
   return (
-    <div className="p-4 border rounded flex flex-col gap-4 bg-white max-w-xl mx-auto">
+    <div className="p-4 border rounded flex flex-col gap-4 bg-white dark:bg-gray-800 max-w-xl mx-auto">
       {step === 1 && (
         <div className="flex flex-col gap-3">
           <h2 className="text-lg font-bold">Account Setup</h2>
