@@ -1,79 +1,51 @@
 'use client';
 import { useState } from 'react';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '@/firebase/firebase';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '@/firebase/firebase';
-import { useRouter } from 'next/navigation';
+import ParticipantWizard, { participantSteps } from '../components/ParticipantWizard';
+import WorkerWizard, { workerSteps } from '../components/WorkerWizard';
+import StepIndicator from '../components/StepIndicator';
 
 export default function SignUpPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState('participant');
-  const [error, setError] = useState('');
-  const router = useRouter();
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    try {
-      if (role === 'worker') {
-        router.push('/signup/worker');
-        return;
-      }
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
-      await setDoc(doc(db, 'users', cred.user.uid), {
-        role,
-        email,
-      });
-      if (role === 'admin') {
-        router.push('/admin');
-      } else {
-        router.push('/signup/participant');
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
-    }
-  };
+  const [role, setRole] = useState<'select' | 'participant' | 'worker'>('select');
+  const [step, setStep] = useState(0); // wizard step
+  const steps =
+    role === 'participant'
+      ? ['Choose Role', ...participantSteps]
+      : role === 'worker'
+      ? ['Choose Role', ...workerSteps]
+      : ['Choose Role'];
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4">
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-80">
-        <h1 className="text-2xl font-bold text-center">Sign Up</h1>
-        {error && <p className="text-red-500">{error}</p>}
-        <input
-          className="border p-2 rounded text-black"
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <input
-          className="border p-2 rounded text-black"
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <select
-          className="border p-2 rounded text-black"
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-        >
-          <option value="participant">Participant</option>
-          <option value="worker">Worker</option>
-          <option value="admin">Admin</option>
-        </select>
-        <button
-          type="submit"
-          className="bg-green-600 text-white p-2 rounded hover:bg-green-700"
-        >
-          Sign Up
-        </button>
-      </form>
+    <div className="min-h-screen flex flex-col items-center p-4">
+      <div className="w-full max-w-xl">
+        <StepIndicator steps={steps} current={step === 0 ? 1 : 1 + step} />
+        {role === 'select' && (
+          <div className="flex flex-col items-center gap-4 p-6 border rounded bg-white">
+            <h1 className="text-2xl font-bold">Join The Foundry</h1>
+            <button className="bg-blue-600 text-white p-3 rounded w-64" onClick={() => setRole('participant')}>
+              I&apos;m a Participant
+            </button>
+            <button className="bg-green-600 text-white p-3 rounded w-64" onClick={() => setRole('worker')}>
+              I&apos;m a Worker
+            </button>
+          </div>
+        )}
+        {role === 'participant' && (
+          <div className="space-y-4">
+            <ParticipantWizard onStepChange={setStep} onComplete={() => setStep(participantSteps.length)} />
+            <button className="text-blue-600 underline" onClick={() => { setRole('select'); setStep(0); }}>
+              &larr; Back to role selection
+            </button>
+          </div>
+        )}
+        {role === 'worker' && (
+          <div className="space-y-4">
+            <WorkerWizard onStepChange={setStep} onComplete={() => setStep(workerSteps.length)} />
+            <button className="text-blue-600 underline" onClick={() => { setRole('select'); setStep(0); }}>
+              &larr; Back to role selection
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

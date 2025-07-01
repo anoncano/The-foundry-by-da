@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { auth } from '@/firebase/firebase';
+import ThemeToggle from './ThemeToggle';
 
 export default function NavBar() {
   const [user, setUser] = useState<User | null>(null);
@@ -22,11 +23,14 @@ export default function NavBar() {
         <Link href="/worker/dashboard">Worker</Link>
         <Link href="/participant">Participant</Link>
       </div>
-      {user && (
-        <button onClick={() => signOut(auth)} className="text-red-500 mt-2 sm:mt-0">
-          Sign Out
-        </button>
-      )}
+      <div className="flex items-center gap-3 mt-2 sm:mt-0">
+        <ThemeToggle />
+        {user && (
+          <button onClick={() => signOut(auth)} className="text-red-500">
+            Sign Out
+          </button>
+        )}
+      </div>
     </nav>
   );
 }

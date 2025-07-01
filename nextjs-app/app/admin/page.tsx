@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { uploadNDIACatalogue } from "@/firebase/uploadNDIACatalogue";
 import { getNDIACatalogue } from "@/lib/getNDIACatalogue";
+import { parseNDIACSV } from "@/lib/parseNDIACSV";
 import {
   collection,
   getDocs,
@@ -13,16 +14,45 @@ import {
   setDoc,
 } from "firebase/firestore";
 import { db } from "@/firebase/firebase";
+import { recordAudit } from "@/lib/recordAudit";
 import { firebaseConfig } from "@/firebase/firebase";
+
+function AuditLogList() {
+  const [logs, setLogs] = useState<{ id: string; action: string; at: string }[]>([]);
+  useEffect(() => {
+    getDocs(query(collection(db, 'auditLogs'))).then((snap) => {
+      const arr: { id: string; action: string; at: string }[] = [];
+      snap.forEach((d) => {
+        const data = d.data() as { action?: string; at?: string };
+        arr.push({ id: d.id, action: data.action ?? '', at: data.at ?? '' });
+      });
+      setLogs(arr);
+    });
+  }, []);
+  return (
+    <ul className="border p-2 h-32 overflow-auto text-sm space-y-1">
+      {logs.map((l) => (
+        <li key={l.id} className="flex justify-between">
+          <span>{l.action}</span>
+          <span className="text-gray-500">{l.at}</span>
+        </li>
+      ))}
+      {logs.length === 0 && <li>No logs</li>}
+    </ul>
+  );
+}
 
 export default function AdminPage() {
   const [year, setYear] = useState("2025-2026");
-  const [catalogue, setCatalogue] = useState("{\n  \"services\": []\n}");
+  const [catalogue, setCatalogue] = useState("");
   const [status, setStatus] = useState("");
   const [services, setServices] = useState<{ code: string; name: string }[]>([]);
   const [userTotals, setUserTotals] = useState<{ uid: string; total: number }[]>([]);
   const [totalCost, setTotalCost] = useState(0);
   const [pricing, setPricing] = useState({ inboundSms: 0, outboundSms: 0, inboundMms: 0, outboundMms: 0 });
+  const [users, setUsers] = useState<{ id: string; role: string }[]>([]);
+  const [userId, setUserId] = useState('');
+  const [role, setRole] = useState('participant');
   const today = new Date();
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
   const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10);
@@ -73,14 +103,44 @@ export default function AdminPage() {
       .catch(() => setStatus('Failed to load usage'));
   }, [startDate, endDate]);
 
+  useEffect(() => {
+      getDocs(collection(db, 'users')).then((snap) => {
+        const list: { id: string; role: string }[] = [];
+        snap.forEach((d) => {
+          const data = d.data() as { role?: string };
+          list.push({ id: d.id, role: data.role ?? '' });
+        });
+        setUsers(list);
+      });
+  }, []);
+
   const handleUpload = async () => {
     try {
       const data = JSON.parse(catalogue);
       await uploadNDIACatalogue(data, year);
       setStatus("Catalogue uploaded");
+      await recordAudit('uploaded catalogue');
     } catch {
       setStatus("Invalid JSON");
     }
+  };
+
+  const handleCSV = async (file: File) => {
+    const text = await file.text();
+    try {
+      const data = parseNDIACSV(text);
+      setCatalogue(JSON.stringify(data, null, 2));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setStatus(msg);
+    }
+  };
+
+  const assignRole = async () => {
+    if (!userId) return;
+    await setDoc(doc(db, 'users', userId), { role }, { merge: true });
+    setStatus('Role updated');
+    await recordAudit(`assigned role ${role} to ${userId}`);
   };
 
   return (
@@ -96,6 +156,14 @@ export default function AdminPage() {
             value={year}
             onChange={(e) => setYear(e.target.value)}
             placeholder="Year"
+          />
+          <input
+            type="file"
+            accept=".csv"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleCSV(file);
+            }}
           />
           <textarea
             className="border p-2 h-40"
@@ -146,7 +214,10 @@ export default function AdminPage() {
             />
           </label>
           <button
-            onClick={() => setDoc(doc(db, 'settings', 'smsPricing'), pricing)}
+            onClick={async () => {
+              await setDoc(doc(db, 'settings', 'smsPricing'), pricing);
+              await recordAudit('updated sms pricing');
+            }}
             className="bg-blue-500 text-white p-2"
           >
             Save Pricing
@@ -192,6 +263,30 @@ export default function AdminPage() {
             </tbody>
           </table>
           <p className="text-sm">Period Total: ${totalCost.toFixed(2)}</p>
+        </div>
+        <div className="flex flex-col gap-2">
+          <h2 className="font-semibold">Manage Users</h2>
+          <label className="text-sm">User ID
+            <input className="border p-1 w-full" value={userId} onChange={(e) => setUserId(e.target.value)} />
+          </label>
+          <label className="text-sm">Role
+            <select className="border p-1 w-full" value={role} onChange={(e) => setRole(e.target.value)}>
+              <option value="participant">Participant</option>
+              <option value="worker">Worker</option>
+              <option value="chatAdmin">Chat Admin</option>
+              <option value="subAdmin">Sub Admin</option>
+            </select>
+          </label>
+          <button className="bg-blue-500 text-white p-2" onClick={assignRole}>Save Role</button>
+          <ul className="text-sm border p-2 h-32 overflow-auto mt-2">
+            {users.map((u) => (
+              <li key={u.id} className="flex justify-between"><span>{u.id}</span><span>{u.role}</span></li>
+            ))}
+          </ul>
+        </div>
+        <div className="flex flex-col gap-2">
+          <h2 className="font-semibold">Audit Logs</h2>
+          <AuditLogList />
         </div>
       </div>
     </div>
