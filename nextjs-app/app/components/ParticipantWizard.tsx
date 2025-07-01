@@ -103,21 +103,33 @@ export default function ParticipantWizard({
   return (
     <div className="p-4 border rounded flex flex-col gap-4 bg-white max-w-xl mx-auto">
       {step === 1 && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <h2 className="text-lg font-bold">Personal Info</h2>
-          <input className="border p-2 rounded" placeholder="Full Name" value={formData.name} onChange={(e) => handleChange('name', e.target.value)} />
-          <input className="border p-2 rounded" type="date" value={formData.dob} onChange={(e) => handleChange('dob', e.target.value)} />
-          <input className="border p-2 rounded" placeholder="NDIS Number" value={formData.ndisNumber} onChange={(e) => handleChange('ndisNumber', e.target.value)} />
-          <input className="border p-2 rounded" type="email" placeholder="Email" value={formData.email} onChange={(e) => handleChange('email', e.target.value)} />
-          <input className="border p-2 rounded" type="password" placeholder="Password" value={formData.password} onChange={(e) => handleChange('password', e.target.value)} />
-          <button className="bg-blue-600 text-white p-2 rounded" onClick={createAccount}>
-            Next
-          </button>
+          <label className="text-sm">Full Name
+            <input className="border p-2 rounded w-full" value={formData.name} onChange={(e) => handleChange('name', e.target.value)} />
+          </label>
+          <label className="text-sm">Date of Birth
+            <input className="border p-2 rounded w-full" type="date" value={formData.dob} onChange={(e) => handleChange('dob', e.target.value)} />
+          </label>
+          <label className="text-sm">NDIS Number
+            <input className="border p-2 rounded w-full" value={formData.ndisNumber} onChange={(e) => handleChange('ndisNumber', e.target.value)} />
+          </label>
+          <label className="text-sm">Email
+            <input className="border p-2 rounded w-full" type="email" value={formData.email} onChange={(e) => handleChange('email', e.target.value)} />
+          </label>
+          <label className="text-sm">Password
+            <input className="border p-2 rounded w-full" type="password" value={formData.password} onChange={(e) => handleChange('password', e.target.value)} />
+          </label>
+          <div className="flex justify-end">
+            <button className="bg-blue-600 text-white p-2 rounded" onClick={createAccount}>
+              Next
+            </button>
+          </div>
         </div>
       )}
 
       {step === 2 && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <h2 className="text-lg font-bold">Plan Details</h2>
           <label className="text-sm">Plan Start
             <input className="border p-2 rounded w-full" type="date" value={formData.planStart} onChange={(e) => handleChange('planStart', e.target.value)} />
@@ -125,7 +137,9 @@ export default function ParticipantWizard({
           <label className="text-sm">Plan End
             <input className="border p-2 rounded w-full" type="date" value={formData.planEnd} onChange={(e) => handleChange('planEnd', e.target.value)} />
           </label>
-          <input className="border p-2 rounded" placeholder="Billing Email" value={formData.billingEmail} onChange={(e) => handleChange('billingEmail', e.target.value)} />
+          <label className="text-sm">Billing Email
+            <input className="border p-2 rounded w-full" type="email" value={formData.billingEmail} onChange={(e) => handleChange('billingEmail', e.target.value)} />
+          </label>
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={formData.selfManaged} onChange={(e) => handleChange('selfManaged', e.target.checked)} />
             Self Managed Plan
@@ -155,12 +169,18 @@ export default function ParticipantWizard({
       )}
 
       {step === 3 && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <h2 className="text-lg font-bold">Address & Emergency</h2>
-          <input className="border p-2 rounded" placeholder="Home Address" value={formData.address} onChange={(e) => handleChange('address', e.target.value)} />
-          <input className="border p-2 rounded" placeholder="Emergency Contact Name" value={formData.emergencyContact} onChange={(e) => handleChange('emergencyContact', e.target.value)} />
-          <input className="border p-2 rounded" placeholder="Emergency Contact Phone" value={formData.emergencyPhone} onChange={(e) => handleChange('emergencyPhone', e.target.value)} />
-          <div className="flex gap-2">
+          <label className="text-sm">Home Address
+            <input className="border p-2 rounded w-full" value={formData.address} onChange={(e) => handleChange('address', e.target.value)} />
+          </label>
+          <label className="text-sm">Emergency Contact Name
+            <input className="border p-2 rounded w-full" value={formData.emergencyContact} onChange={(e) => handleChange('emergencyContact', e.target.value)} />
+          </label>
+          <label className="text-sm">Emergency Contact Phone
+            <input className="border p-2 rounded w-full" value={formData.emergencyPhone} onChange={(e) => handleChange('emergencyPhone', e.target.value)} />
+          </label>
+          <div className="flex gap-2 justify-between">
             <button className="bg-gray-200 p-2 rounded" onClick={() => setStep(2)}>
               Back
             </button>
@@ -172,7 +192,7 @@ export default function ParticipantWizard({
       )}
 
       {step === 4 && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <h2 className="text-lg font-bold">Service Selection</h2>
           <ServiceSelector
             services={catalogue}
@@ -182,7 +202,7 @@ export default function ParticipantWizard({
               setFormData({ ...formData, serviceCode: code, rate });
             }}
           />
-          <div className="flex gap-2">
+          <div className="flex gap-2 justify-between">
             <button className="bg-gray-200 p-2 rounded" onClick={() => setStep(3)}>
               Back
             </button>

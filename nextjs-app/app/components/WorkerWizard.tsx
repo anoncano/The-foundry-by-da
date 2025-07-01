@@ -90,29 +90,49 @@ export default function WorkerWizard({
   return (
     <div className="p-4 border rounded flex flex-col gap-4 bg-white max-w-xl mx-auto">
       {step === 1 && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <h2 className="text-lg font-bold">Account Setup</h2>
-          <input className="border p-2 rounded" placeholder="Name" value={form.name} onChange={(e) => handleChange('name', e.target.value)} />
-          <input className="border p-2 rounded" type="email" placeholder="Email" value={form.email} onChange={(e) => handleChange('email', e.target.value)} />
-          <input className="border p-2 rounded" placeholder="Phone" value={form.phone} onChange={(e) => handleChange('phone', e.target.value)} />
-          <input className="border p-2 rounded" type="password" placeholder="Password" value={form.password} onChange={(e) => handleChange('password', e.target.value)} />
-          <button className="bg-blue-600 text-white p-2 rounded" onClick={createAccount}>Next</button>
+          <label className="text-sm">Full Name
+            <input className="border p-2 rounded w-full" value={form.name} onChange={(e) => handleChange('name', e.target.value)} />
+          </label>
+          <label className="text-sm">Email
+            <input className="border p-2 rounded w-full" type="email" value={form.email} onChange={(e) => handleChange('email', e.target.value)} />
+          </label>
+          <label className="text-sm">Phone
+            <input className="border p-2 rounded w-full" value={form.phone} onChange={(e) => handleChange('phone', e.target.value)} />
+          </label>
+          <label className="text-sm">Password
+            <input className="border p-2 rounded w-full" type="password" value={form.password} onChange={(e) => handleChange('password', e.target.value)} />
+          </label>
+          <div className="flex justify-end">
+            <button className="bg-blue-600 text-white p-2 rounded" onClick={createAccount}>Next</button>
+          </div>
         </div>
       )}
 
       {step === 2 && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <h2 className="text-lg font-bold">ABN Details</h2>
-          <input className="border p-2 rounded" placeholder="Operating Name" value={form.operatingName} onChange={(e) => handleChange('operatingName', e.target.value)} />
-          <input className="border p-2 rounded" placeholder="ABN" value={form.abn} onChange={(e) => handleChange('abn', e.target.value)} />
-          <label className="flex gap-2 items-center">
+          <label className="text-sm">Operating Name
+            <input className="border p-2 rounded w-full" value={form.operatingName} onChange={(e) => handleChange('operatingName', e.target.value)} />
+          </label>
+          <label className="text-sm">ABN
+            <input className="border p-2 rounded w-full" value={form.abn} onChange={(e) => handleChange('abn', e.target.value)} />
+          </label>
+          <label className="flex gap-2 items-center text-sm">
             <input type="checkbox" checked={form.gst} onChange={(e) => handleChange('gst', e.target.checked)} />
             <span>GST Registered</span>
           </label>
-          <input className="border p-2 rounded" placeholder="BSB" value={form.bsb} onChange={(e) => handleChange('bsb', e.target.value)} />
-          <input className="border p-2 rounded" placeholder="Account Number" value={form.account} onChange={(e) => handleChange('account', e.target.value)} />
-          <input className="border p-2 rounded" placeholder="Address" value={form.address} onChange={(e) => handleChange('address', e.target.value)} />
-          <div className="flex gap-2">
+          <label className="text-sm">BSB
+            <input className="border p-2 rounded w-full" value={form.bsb} onChange={(e) => handleChange('bsb', e.target.value)} />
+          </label>
+          <label className="text-sm">Account Number
+            <input className="border p-2 rounded w-full" value={form.account} onChange={(e) => handleChange('account', e.target.value)} />
+          </label>
+          <label className="text-sm">Address
+            <input className="border p-2 rounded w-full" value={form.address} onChange={(e) => handleChange('address', e.target.value)} />
+          </label>
+          <div className="flex gap-2 justify-between">
             <button className="bg-gray-200 p-2 rounded" onClick={() => setStep(1)}>
               Back
             </button>
@@ -124,17 +144,17 @@ export default function WorkerWizard({
       )}
 
       {step === 3 && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <h2 className="text-lg font-bold">Dashboard Prep</h2>
-          <label className="flex items-center gap-1">
+          <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={form.clientManager} onChange={(e) => handleChange('clientManager', e.target.checked)} />
             <span>Use Client Manager</span>
           </label>
-          <label className="flex items-center gap-1">
+          <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={form.automateInvoices} onChange={(e) => handleChange('automateInvoices', e.target.checked)} />
             <span>Automate Invoices</span>
           </label>
-          <div className="flex gap-2">
+          <div className="flex gap-2 justify-between">
             <button className="bg-gray-200 p-2 rounded" onClick={() => setStep(2)}>
               Back
             </button>
