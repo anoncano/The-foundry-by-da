@@ -22,7 +22,7 @@ This app demonstrates a small Next.js + Firebase setup for logging shifts and cr
 - Participant signup wizard with plan details and service selection
 - Worker signup wizard with account setup and ABN details
 - Worker dashboard with clients, shifts, invoices and expenses
-- Admin area for uploading NDIS support catalogues and managing SMS pricing
+- Admin area for uploading NDIS support catalogues and managing SMS pricing. A CSV uploader converts line items into JSON.
 
 ### Twilio SMS
 

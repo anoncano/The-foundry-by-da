@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { uploadNDIACatalogue } from "@/firebase/uploadNDIACatalogue";
 import { getNDIACatalogue } from "@/lib/getNDIACatalogue";
+import { parseNDIACSV } from "@/lib/parseNDIACSV";
 import {
   collection,
   getDocs,
@@ -17,7 +18,7 @@ import { firebaseConfig } from "@/firebase/firebase";
 
 export default function AdminPage() {
   const [year, setYear] = useState("2025-2026");
-  const [catalogue, setCatalogue] = useState("{\n  \"services\": []\n}");
+  const [catalogue, setCatalogue] = useState("");
   const [status, setStatus] = useState("");
   const [services, setServices] = useState<{ code: string; name: string }[]>([]);
   const [userTotals, setUserTotals] = useState<{ uid: string; total: number }[]>([]);
@@ -83,6 +84,17 @@ export default function AdminPage() {
     }
   };
 
+  const handleCSV = async (file: File) => {
+    const text = await file.text();
+    try {
+      const data = parseNDIACSV(text);
+      setCatalogue(JSON.stringify(data, null, 2));
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setStatus(msg);
+    }
+  };
+
   return (
     <div className="p-4 max-w-screen-lg mx-auto space-y-6">
       <h1 className="text-2xl font-bold">Admin Dashboard</h1>
@@ -96,6 +108,14 @@ export default function AdminPage() {
             value={year}
             onChange={(e) => setYear(e.target.value)}
             placeholder="Year"
+          />
+          <input
+            type="file"
+            accept=".csv"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleCSV(file);
+            }}
           />
           <textarea
             className="border p-2 h-40"
