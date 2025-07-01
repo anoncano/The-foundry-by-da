@@ -17,17 +17,19 @@ export default function SignUpPage() {
     e.preventDefault();
     setError('');
     try {
+      if (role === 'worker') {
+        router.push('/signup/worker');
+        return;
+      }
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await setDoc(doc(db, 'users', cred.user.uid), {
         role,
         email,
       });
-      if (role === 'worker') {
-        router.push('/worker/dashboard');
-      } else if (role === 'admin') {
+      if (role === 'admin') {
         router.push('/admin');
       } else {
-        router.push('/participant/signup');
+        router.push('/signup/participant');
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -41,7 +43,7 @@ export default function SignUpPage() {
         <h1 className="text-2xl font-bold text-center">Sign Up</h1>
         {error && <p className="text-red-500">{error}</p>}
         <input
-          className="border p-2"
+          className="border p-2 rounded text-black"
           type="email"
           placeholder="Email"
           value={email}
@@ -49,7 +51,7 @@ export default function SignUpPage() {
           required
         />
         <input
-          className="border p-2"
+          className="border p-2 rounded text-black"
           type="password"
           placeholder="Password"
           value={password}
@@ -57,7 +59,7 @@ export default function SignUpPage() {
           required
         />
         <select
-          className="border p-2"
+          className="border p-2 rounded text-black"
           value={role}
           onChange={(e) => setRole(e.target.value)}
         >
@@ -65,7 +67,12 @@ export default function SignUpPage() {
           <option value="worker">Worker</option>
           <option value="admin">Admin</option>
         </select>
-        <button type="submit" className="bg-blue-500 text-white p-2">Sign Up</button>
+        <button
+          type="submit"
+          className="bg-green-600 text-white p-2 rounded hover:bg-green-700"
+        >
+          Sign Up
+        </button>
       </form>
     </div>
   );

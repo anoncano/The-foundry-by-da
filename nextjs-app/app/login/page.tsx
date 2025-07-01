@@ -22,7 +22,7 @@ export default function LoginPage() {
       } else if (role === 'admin') {
         router.push('/admin');
       } else {
-        router.push('/client');
+        router.push('/participant');
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -36,7 +36,7 @@ export default function LoginPage() {
         <h1 className="text-2xl font-bold text-center">Login</h1>
         {error && <p className="text-red-500">{error}</p>}
         <input
-          className="border p-2"
+          className="border p-2 rounded text-black"
           type="email"
           placeholder="Email"
           value={email}
@@ -44,14 +44,19 @@ export default function LoginPage() {
           required
         />
         <input
-          className="border p-2"
+          className="border p-2 rounded text-black"
           type="password"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-        <button type="submit" className="bg-blue-500 text-white p-2">Login</button>
+        <button
+          type="submit"
+          className="bg-blue-600 text-white p-2 rounded hover:bg-blue-700"
+        >
+          Login
+        </button>
       </form>
     </div>
   );

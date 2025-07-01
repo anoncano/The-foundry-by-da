@@ -1,8 +1,11 @@
+'use client';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
 export default function WorkerPage() {
-  return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold">Worker Page</h1>
-      <p>Worker content goes here.</p>
-    </div>
-  );
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/worker/dashboard');
+  }, [router]);
+  return null;
 }

@@ -1,5 +1,13 @@
 export async function getNDIACatalogue(year: string) {
-  // Placeholder fetch logic
-  const res = await fetch(`/api/catalogue/${year}`);
-  return res.json();
+  // Static placeholder catalogue
+  return Promise.resolve({
+    services: [
+      {
+        code: '01_011_0107_1_1',
+        name: 'Daily Personal Activities',
+        tiers: [{ name: 'Standard', maxRate: 62.17 }],
+      },
+    ],
+    year,
+  });
 }
