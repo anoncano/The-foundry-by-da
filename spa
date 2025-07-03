@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NDIS LiteXero - Admin SPA</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Inter Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Custom styles for Inter font and general body styling */
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f4f6f9; /* Light gray background */
+      min-height: 100vh; /* Ensure body takes full viewport height */
+      display: flex; /* Use flexbox for centering */
+      flex-direction: column; /* Stack children vertically */
+      justify-content: center; /* Center content vertically */
+      align-items: center; /* Center content horizontally */
+      padding: 20px; /* Add some padding around the content */
+    }
+    /* Ensure select elements have a consistent height with inputs */
+    select {
+      appearance: none; /* Remove default browser styling for select */
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor'%3E%3Cpath fill-rule='evenodd' d='M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z' clip-rule='evenodd'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.75rem center;
+      background-size: 1.5em 1.5em;
+      padding-right: 2.5rem; /* Make space for the custom arrow */
+    }
+    /* Style for the message box */
+    .message-box {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: #333;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.3s ease-in-out;
+      z-index: 1000;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+    .message-box.show {
+      opacity: 1;
+    }
+    /* Hidden class for sections - IMPORTANT: Ensures only active tab is shown */
+    .hidden-section {
+      display: none !important;
+    }
+    /* Style for individual code items in the list */
+    .code-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px dashed #eee;
+    }
+    .code-item:last-child {
+      border-bottom: none;
+    }
+  </style>
+
+  <!-- Firebase SDKs -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, doc, updateDoc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Your web app's Firebase configuration (provided by user)
+    const firebaseConfig = {
+      apiKey: "AIzaSyAefBe7cgSA8FNJzR7p5NHWTsbLFrRuyKY",
+      authDomain: "the-foundry-by-da.firebaseapp.com",
+      projectId: "the-foundry-by-da",
+      storageBucket: "the-foundry-by-da.firebasestorage.app",
+      messagingSenderId: "825755098252",
+      appId: "1:825755098252:web:ad6e84e40be56271fbefa9",
+      measurementId: "G-72Z53Z6LNR"
+    };
+
+    // Use the projectId from the provided firebaseConfig as the appId for Firestore paths
+    const appId = firebaseConfig.projectId;
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    // Make Firestore functions globally accessible
+    window.db = db;
+    window.auth = auth;
+    window.appId = appId;
+    window.userId = null; // Will be set after authentication
+
+    // Expose Firestore functions globally
+    window.collection = collection;
+    window.addDoc = addDoc;
+    window.doc = doc;
+    window.updateDoc = updateDoc;
+    window.onSnapshot = onSnapshot;
+    window.deleteDoc = deleteDoc;
+
+
+    window.currentWorkers = []; // To store fetched workers
+    window.currentParticipants = []; // To store fetched participants
+    window.currentJobs = []; // To store fetched jobs
+    window.currentSmsRules = []; // To store fetched SMS rules
+
+    // Authenticate and set up auth state listener
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        window.userId = user.uid; // Update global userId
+        console.log("Authenticated with UID:", window.userId);
+        // Once authenticated, start listening for data
+        window.setupFirestoreListeners();
+      } else {
+        // Always sign in anonymously if no user is present
+        try {
+          await signInAnonymously(auth);
+        } catch (error) {
+          console.error("Firebase anonymous sign-in failed:", error);
+          showMessage("Anonymous sign-in failed. Some features may not work.", 5000);
+        }
+      }
+    });
+
+    // Function to show messages (re-declared for clarity, but already in main script)
+    function showMessage(message, duration = 3000) {
+        const messageBox = document.getElementById("messageBox");
+        if (messageBox) {
+            messageBox.textContent = message;
+            messageBox.classList.add('show');
+            setTimeout(() => {
+                messageBox.classList.remove('show');
+            }, duration);
+        }
+    }
+  </script>
+</head>
+<body class="p-4 sm:p-6 md:p-8">
+
+<div class="max-w-4xl w-full">
+  <!-- Navigation for testing -->
+  <nav class="mb-6 p-4 bg-white rounded-lg shadow-md flex flex-wrap gap-4 justify-center">
+    <button id="navWorkerOnboarding" class="nav-button bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-md transition-colors duration-200">
+      Worker Onboarding
+    </button>
+    <button id="navWorkerList" class="nav-button bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors duration-200">
+      Worker List
+    </button>
+    <button id="navParticipantSignup" class="nav-button bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors duration-200">
+      Participant Sign-up
+    </button>
+    <button id="navParticipantList" class="nav-button bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors duration-200">
+      Participant List
+    </button>
+    <button id="navAssignCodes" class="nav-button bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors duration-200">
+      Assign NDIS Codes
+    </button>
+    <button id="navInvoiceGenerator" class="nav-button bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors duration-200">
+      Invoice Generator
+    </button>
+    <button id="navJobBuilder" class="nav-button bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors duration-200">
+      Job Builder
+    </button>
+    <button id="navSmsAutomation" class="nav-button bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-md transition-colors duration-200">
+      SMS Automation
+    </button>
+  </nav>
+
+  <!-- Support Worker Onboarding Section -->
+  <div id="workerOnboardingSection" class="section bg-white p-6 rounded-lg shadow-md mb-6">
+    <h2 class="text-xl font-semibold mb-4 text-gray-800">👷 Support Worker Onboarding (Wizard)</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label for="onboardWorkerName" class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+        <input type="text" id="onboardWorkerName" placeholder="e.g., Jane Doe" class="input-field" />
+      </div>
+      <div>
+        <label for="onboardWorkerPhone" class="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+        <input type="tel" id="onboardWorkerPhone" placeholder="e.g., 0412 345 678" class="input-field" />
+      </div>
+      <div>
+        <label for="onboardWorkerEmail" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+        <input type="email" id="onboardWorkerEmail" placeholder="e.g., jane.doe@example.com" class="input-field" />
+      </div>
+      <div>
+        <label for="onboardWorkerABN" class="block text-sm font-medium text-gray-700 mb-1">ABN</label>
+        <input type="text" id="onboardWorkerABN" placeholder="e.g., 12 345 678 901" class="input-field" />
+      </div>
+      <div>
+        <label for="onboardWorkerAddress" class="block text-sm font-medium text-gray-700 mb-1">Address</label>
+        <input type="text" id="onboardWorkerAddress" placeholder="e.g., 123 Main St, Anytown NSW 2000" class="input-field" />
+      </div>
+      <div>
+        <label for="onboardWorkerBSB" class="block text-sm font-medium text-gray-700 mb-1">BSB</label>
+        <input type="text" id="onboardWorkerBSB" placeholder="e.g., 062-000" class="input-field" />
+      </div>
+      <div>
+        <label for="onboardWorkerAccount" class="block text-sm font-medium text-gray-700 mb-1">Account #</label>
+        <input type="text" id="onboardWorkerAccount" placeholder="e.g., 123456789" class="input-field" />
+      </div>
+      <div>
+        <label for="onboardWorkerInvoiceStart" class="block text-sm font-medium text-gray-700 mb-1">Starting Invoice # (e.g., 1)</label>
+        <input type="number" id="onboardWorkerInvoiceStart" placeholder="e.g., 1" class="input-field" min="1" />
+      </div>
+      <div class="col-span-1 sm:col-span-2">
+        <label for="onboardWorkerGST" class="block text-sm font-medium text-gray-700 mb-1">GST Registered?</label>
+        <select id="onboardWorkerGST" class="input-field">
+          <option value="">Select an option</option>
+          <option value="Yes">Yes</option>
+          <option value="No">No</option>
+        </select>
+      </div>
+    </div>
+    <button id="completeOnboarding" class="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200 ease-in-out shadow-sm hover:shadow-md">
+      Complete Onboarding & Save
+    </button>
+  </div>
+
+  <!-- Support Worker List Section -->
+  <div id="workerListSection" class="section bg-white p-6 rounded-lg shadow-md mb-6 hidden-section">
+    <h2 class="text-xl font-semibold mb-4 text-gray-800">👤 Support Worker List</h2>
+    <div id="workerList" class="space-y-3">
+      <p class="text-center text-gray-500">Loading workers...</p>
+    </div>
+  </div>
+
+  <!-- Participant Sign-up Wizard Section -->
+  <div id="participantSignupSection" class="section bg-white p-6 rounded-lg shadow-md mb-6 hidden-section">
+    <h2 class="text-xl font-semibold mb-4 text-gray-800">🤝 Participant Sign-up (NDIS Plan Managed)</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="col-span-1 sm:col-span-2">
+        <label for="participantFullName" class="block text-sm font-medium text-gray-700 mb-1">Participant Full Name</label>
+        <input type="text" id="participantFullName" placeholder="e.g., Alex Johnson" class="input-field" />
+      </div>
+      <div>
+        <label for="participantNDISNumber" class="block text-sm font-medium text-gray-700 mb-1">NDIS Number</label>
+        <input type="text" id="participantNDISNumber" placeholder="e.g., 430 123 456" class="input-field" />
+      </div>
+      <div>
+        <label for="participantEmail" class="block text-sm font-medium text-gray-700 mb-1">Participant Email</label>
+        <input type="email" id="participantEmail" placeholder="e.g., alex.j@example.com" class="input-field" />
+      </div>
+      <div class="col-span-1 sm:col-span-2">
+        <label for="participantAddress" class="block text-sm font-medium text-gray-700 mb-1">Participant Address</label>
+        <input type="text" id="participantAddress" placeholder="e.g., 456 Oak Ave, Suburb VIC 3000" class="input-field" />
+      </div>
+      <div class="col-span-1 sm:col-span-2">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Payment Type</label>
+        <select id="participantPaymentType" class="input-field">
+          <option value="">Select Payment Type</option>
+          <option value="Plan Managed">Plan Managed</option>
+          <option value="Self Managed">Self Managed</option>
+          <option value="NDIA Managed">NDIA Managed</option>
+        </select>
+      </div>
+      <div class="col-span-1 sm:col-span-2">
+        <h3 class="text-lg font-medium text-gray-800 mt-4 mb-2">Plan Manager Details (if Plan Managed)</h3>
+      </div>
+      <div>
+        <label for="planManagerName" class="block text-sm font-medium text-gray-700 mb-1">Plan Manager Name</label>
+        <input type="text" id="planManagerName" placeholder="e.g., NDIS Solutions Pty Ltd" class="input-field" />
+      </div>
+      <div>
+        <label for="planManagerEmail" class="block text-sm font-medium text-gray-700 mb-1">Plan Manager Email</label>
+        <input type="email" id="planManagerEmail" placeholder="e.g., claims@ndissolutions.com.au" class="input-field" />
+      </div>
+      <div class="col-span-1 sm:col-span-2">
+        <label for="planManagerPhone" class="block text-sm font-medium text-gray-700 mb-1">Plan Manager Phone (Optional)</label>
+        <input type="tel" id="planManagerPhone" placeholder="e.g., 1300 123 456" class="input-field" />
+      </div>
+      <div class="col-span-1 sm:col-span-2">
+        <label for="participantNotes" class="block text-sm font-medium text-gray-700 mb-1">Additional Notes (e.g., specific support categories, funding details)</label>
+        <textarea id="participantNotes" placeholder="Any other relevant details for invoicing or support" class="input-field h-24 resize-y"></textarea>
+      </div>
+    </div>
+    <button id="completeParticipantSignup" class="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200 ease-in-out shadow-sm hover:shadow-md">
+      Complete Participant Sign-up & Save
+    </button>
+  </div>
+
+  <!-- Participant List Section -->
+  <div id="participantListSection" class="section bg-white p-6 rounded-lg shadow-md mb-6 hidden-section">
+    <h2 class="text-xl font-semibold mb-4 text-gray-800">🧍 Participant List</h2>
+    <div id="participantList" class="space-y-3">
+      <p class="text-center text-gray-500">Loading participants...</p>
+    </div>
+  </div>
+
+  <!-- Assign NDIS Codes Section -->
+  <div id="assignCodesSection" class="section bg-white p-6 rounded-lg shadow-md mb-6 hidden-section">
+    <h2 class="text-xl font-semibold mb-4 text-gray-800">🏷️ Assign NDIS Codes to Participant</h2>
+    <div class="mb-4">
+      <label for="selectParticipantForCodes" class="block text-sm font-medium text-gray-700 mb-1">Select Participant</label>
+      <select id="selectParticipantForCodes" class="input-field">
+        <option value="">-- Select a Participant --</option>
+      </select>
+    </div>
+
+    <h3 class="text-lg font-medium text-gray-800 mt-6 mb-2">Available NDIS Support Items</h3>
+    <input type="text" id="ndisCodeSearch" placeholder="Search by code or description..." class="input-field mb-4" />
+    <div id="availableNdisCodes" class="h-64 overflow-y-auto border border-gray-200 rounded-md p-3 bg-gray-50">
+      <p class="text-center text-gray-500">Select a participant to load codes.</p>
+    </div>
+
+    <h3 class="text-lg font-medium text-gray-800 mt-6 mb-2">Assigned Codes for Selected Participant</h3>
+    <div id="assignedNdisCodes" class="min-h-[100px] h-auto overflow-y-auto border border-gray-200 rounded-md p-3 bg-gray-50 mb-4">
+      <p class="text-center text-gray-500">No codes assigned yet.</p>
+    </div>
+
+    <button id="saveAssignedCodes" class="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200 ease-in-out shadow-sm hover:shadow-md">
+      Save Assigned Codes
+    </button>
+  </div>
+
+  <!-- Invoice Generator Section -->
+  <div id="invoiceGeneratorSection" class="section bg-white p-6 rounded-lg shadow-md mb-6 hidden-section">
+    <h2 class="text-xl font-semibold mb-4 text-gray-800">🧾 Invoice Generator</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label for="invoiceWorkerSelect" class="block text-sm font-medium text-gray-700 mb-1">Select Worker</label>
+        <select id="invoiceWorkerSelect" class="input-field">
+          <option value="">-- Select a Worker --</option>
+        </select>
+      </div>
+      <div>
+        <label for="invoiceParticipantSelect" class="block text-sm font-medium text-gray-700 mb-1">Select Participant</label>
+        <select id="invoiceParticipantSelect" class="input-field">
+          <option value="">-- Select a Participant --</option>
+        </select>
+      </div>
+      <div class="col-span-1 sm:col-span-2">
+        <label for="invoiceJobSelect" class="block text-sm font-medium text-gray-700 mb-1">Select Job (Optional)</label>
+        <select id="invoiceJobSelect" class="input-field">
+          <option value="">-- Select a Job (or enter details below) --</option>
+        </select>
+      </div>
+      <div class="col-span-1 sm:col-span-2">
+        <h3 class="text-lg font-medium text-gray-800 mt-4 mb-2">Manual Job Details (if no job selected)</h3>
+      </div>
+      <div>
+        <label for="invoiceSupportCode" class="block text-sm font-medium text-gray-700 mb-1">Support Code</label>
+        <input type="text" id="invoiceSupportCode" placeholder="e.g., 01_011_0107_1_1" class="input-field" />
+      </div>
+      <div>
+        <label for="invoiceHourlyRate" class="block text-sm font-medium text-gray-700 mb-1">Hourly Rate ($)</label>
+        <input type="number" id="invoiceHourlyRate" placeholder="e.g., 62.17" class="input-field" />
+      </div>
+      <div>
+        <label for="invoiceHoursWorked" class="block text-sm font-medium text-gray-700 mb-1">Hours Worked</label>
+        <input type="number" id="invoiceHoursWorked" placeholder="e.g., 3.5" class="input-field" />
+      </div>
+      <div>
+        <label for="invoiceJobDate" class="block text-sm font-medium text-gray-700 mb-1">Job Date</label>
+        <input type="date" id="invoiceJobDate" class="input-field" />
+      </div>
+      <div class="col-span-1 sm:col-span-2">
+        <label for="invoiceJobNotes" class="block text-sm font-medium text-gray-700 mb-1">Job Notes</label>
+        <textarea id="invoiceJobNotes" placeholder="Brief description of services provided" class="input-field h-24 resize-y"></textarea>
+      </div>
+    </div>
+    <div class="flex flex-col sm:flex-row gap-4 mt-6">
+      <button id="generateInvoiceButton" class="w-full sm:w-1/2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200 ease-in-out shadow-sm hover:shadow-md">
+        Generate Invoice Preview
+      </button>
+      <button id="sendTestInvoiceButton" class="w-full sm:w-1/2 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200 ease-in-out shadow-sm hover:shadow-md">
+        Send Test Invoice Email
+      </button>
+    </div>
+    <pre id="invoiceOutput" class="bg-blue-50 text-blue-900 p-4 rounded-md overflow-auto text-sm leading-relaxed shadow-inner border border-blue-200 mt-6 min-h-[200px]">Select a worker, participant, and job (or enter manual details) to preview invoice.</pre>
+  </div>
+
+  <!-- Participant Job Builder Section -->
+  <div id="jobBuilderSection" class="section bg-white p-6 rounded-lg shadow-md mb-6 hidden-section">
+    <h2 class="text-xl font-semibold mb-4 text-gray-800">📋 Create New Job</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div class="col-span-1 sm:col-span-2">
+        <label for="jobTitle" class="block text-sm font-medium text-gray-700 mb-1">Job Title</label>
+        <input type="text" id="jobTitle" placeholder="e.g., Weekend Community Access" class="input-field" />
+      </div>
+      <div>
+        <label for="jobDate" class="block text-sm font-medium text-gray-700 mb-1">Job Date</label>
+        <input type="date" id="jobDate" class="input-field" />
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label for="jobStartTime" class="block text-sm font-medium text-gray-700 mb-1">Start Time (Optional)</label>
+          <input type="time" id="jobStartTime" class="input-field" />
+        </div>
+        <div>
+          <label for="jobEndTime" class="block text-sm font-medium text-gray-700 mb-1">End Time (Optional)</label>
+          <input type="time" id="jobEndTime" class="input-field" />
+        </div>
+      </div>
+      <div class="col-span-1 sm:col-span-2">
+        <label for="jobLocation" class="block text-sm font-medium text-gray-700 mb-1">Location of Job</label>
+        <input type="text" id="jobLocation" placeholder="e.g., Local park, Client's home" class="input-field" />
+      </div>
+      <div class="col-span-1 sm:col-span-2">
+        <label for="jobDetails" class="block text-sm font-medium text-gray-700 mb-1">Other Details</label>
+        <textarea id="jobDetails" placeholder="e.g., specific tasks, support needs, preferences, transport required" class="input-field h-32 resize-y"></textarea>
+      </div>
+    </div>
+    <button id="createJobButton" class="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200 ease-in-out shadow-sm hover:shadow-md">
+      Create Job & Save
+    </button>
+  </div>
+
+  <!-- SMS Automation Engine Section -->
+  <div id="smsAutomationSection" class="section bg-white p-6 rounded-lg shadow-md mb-6 hidden-section">
+    <h2 class="text-xl font-semibold mb-4 text-gray-800">💬 SMS Automation Engine</h2>
+
+    <div class="mb-6">
+      <h3 class="text-lg font-medium text-gray-800 mb-2">Define New Rule</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label for="smsIfCondition" class="block text-sm font-medium text-gray-700 mb-1">IF SMS Contains (Keyword/Phrase)</label>
+          <input type="text" id="smsIfCondition" placeholder="e.g., start km" class="input-field" />
+        </div>
+        <div>
+          <label for="smsThenAction" class="block text-sm font-medium text-gray-700 mb-1">THEN Action (e.g., log_start_km)</label>
+          <input type="text" id="smsThenAction" placeholder="e.g., log_start_km" class="input-field" />
+        </div>
+      </div>
+      <button id="addSmsRuleButton" class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200 ease-in-out shadow-sm hover:shadow-md">
+        Add Rule
+      </button>
+    </div>
+
+    <div class="mb-6">
+      <h3 class="text-lg font-medium text-gray-800 mb-2">Current SMS Rules</h3>
+      <div id="smsRulesList" class="min-h-[100px] h-auto overflow-y-auto border border-gray-200 rounded-md p-3 bg-gray-50">
+        <p class="text-center text-gray-500">No rules defined yet.</p>
+      </div>
+    </div>
+
+    <div>
+      <h3 class="text-lg font-medium text-gray-800 mb-2">Simulate SMS</h3>
+      <input type="text" id="simulateSmsInput" placeholder="Type a message to simulate..." class="input-field mb-4" />
+      <button id="triggerSmsRulesButton" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-md transition-colors duration-200 ease-in-out shadow-sm hover:shadow-md">
+        Trigger Rules
+      </button>
+      <div id="smsTriggerLog" class="bg-yellow-50 text-yellow-900 p-4 rounded-md overflow-auto text-sm leading-relaxed shadow-inner border border-yellow-200 mt-4 min-h-[80px]">
+        <p class="text-center text-gray-500">Simulated SMS trigger log will appear here.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Message box for user feedback -->
+<div id="messageBox" class="message-box"></div>
+
+<script type="module">
+  // Ensure Firebase variables are accessible globally after module import
+  const db = window.db;
+  const auth = window.auth;
+  const appId = window.appId;
+  // userId is now directly accessed via auth.currentUser.uid in functions
+  // window.userId is still updated by onAuthStateChanged for global state tracking
+
+  // Mock NDIS Price Guide data (simplified) - Comprehensive list
+  const ndisPriceGuide = [
+    { code: "01_011_0107_1_1", description: "Assistance with Social, Economic and Community Participation - Standard", rate: 62.17 },
+    { code: "01_011_0107_1_1_T", description: "Assistance with Social, Economic and Community Participation - Standard (Travel)", rate: 62.17 },
+    { code: "04_102_0125_6_1", description: "Community Nursing Care - Registered Nurse", rate: 86.79 },
+    { code: "01_001_0107_1_1", description: "Assistance with Self-Care Activities - Standard", rate: 52.86 },
+    { code: "01_004_0107_1_1", description: "Assistance with Daily Tasks in a Group or Shared Living Arrangement", rate: 52.86 },
+    { code: "01_005_0118_1_1", description: "High Intensity Daily Personal Activities", rate: 65.47 },
+    { code: "01_006_0107_1_1", description: "Assistance with Travel/Transport", rate: 0.85 }, // Per km rate example
+    { code: "01_008_0107_1_1", description: "Household Tasks", rate: 52.86 },
+    { code: "01_009_0107_1_1", description: "Community Participation Activities", rate: 62.17 },
+    { code: "01_010_0107_1_1", description: "Development of Daily Living and Life Skills", rate: 62.17 },
+    { code: "01_012_0107_1_1", description: "Therapeutic Supports - Occupational Therapy", rate: 193.99 },
+    { code: "01_013_0107_1_1", description: "Therapeutic Supports - Physiotherapy", rate: 193.99 },
+    { code: "01_014_0107_1_1", description: "Therapeutic Supports - Speech Pathology", rate: 193.99 },
+    { code: "01_015_0107_1_1", description: "Early Childhood Intervention", rate: 193.99 },
+    { code: "01_016_0107_1_1", description: "Specialised Driving Lessons", rate: 193.99 },
+    { code: "01_017_0107_1_1", description: "Assistance with Decision Making, Daily Planning, and Budgeting", rate: 62.17 },
+    { code: "01_018_0107_1_1", description: "Group Based Community, Social and Recreational Activities", rate: 62.17 },
+    { code: "01_019_0107_1_1", description: "Individual Social and Community Participation", rate: 62.17 },
+    { code: "01_020_0107_1_1", description: "Assistance with Personal Activities - High Intensity", rate: 65.47 },
+    { code: "01_021_0107_1_1", description: "Assistance with Personal Activities - Standard", rate: 52.86 },
+    { code: "01_022_0107_1_1", description: "Assistance to Access Community, Social and Recreational Activities", rate: 62.17 },
+    { code: "01_023_0107_1_1", description: "Assistance with Medication Management", rate: 52.86 },
+    { code: "01_024_0107_1_1", description: "Assistance with Meal Preparation and Delivery", rate: 52.86 },
+    { code: "01_025_0107_1_1", description: "Assistance with Shopping", rate: 52.86 },
+    { code: "01_026_0107_1_1", description: "Assistance with Personal Care - Group", rate: 52.86 },
+    { code: "01_027_0107_1_1", description: "Assistance with Personal Care - Individual", rate: 52.86 },
+    { code: "01_028_0107_1_1", description: "Assistance with Showering/Bathing", rate: 52.86 },
+    { code: "01_029_0107_1_1", description: "Assistance with Dressing", rate: 52.86 },
+    { code: "01_030_0107_1_1", description: "Assistance with Toileting", rate: 52.86 },
+    { code: "01_031_0107_1_1", description: "Assistance with Eating and Drinking", rate: 52.86 },
+    { code: "01_032_0107_1_1", description: "Assistance with Mobility", rate: 52.86 },
+    { code: "01_033_0107_1_1", description: "Assistance with Communication", rate: 52.86 },
+    { code: "01_034_0107_1_1", description: "Assistance with Continence Management", rate: 52.86 },
+    { code: "01_035_0107_1_1", description: "Assistance with Pressure Area Care", rate: 52.86 },
+    { code: "01_036_0107_1_1", description: "Assistance with Wound Care", rate: 52.86 },
+    { code: "01_037_0107_1_1", description: "Assistance with Bowel Management", rate: 52.86 },
+    { code: "01_038_0107_1_1", description: "Assistance with Stoma Care", rate: 52.86 },
+    { code: "01_039_0107_1_1", description: "Assistance with Catheter Care", rate: 52.86 },
+    { code: "01_040_0107_1_1", description: "Assistance with Diabetes Management", rate: 52.86 },
+    { code: "01_041_0107_1_1", description: "Assistance with Epilepsy Management", rate: 52.86 },
+    { code: "01_042_0107_1_1", description: "Assistance with PEG Feeding", rate: 65.47 },
+    { code: "01_043_0107_1_1", description: "Assistance with Tracheostomy Care", rate: 65.47 },
+    { code: "01_044_0107_1_1", description: "Assistance with Ventilator Management", rate: 65.47 },
+    { code: "01_045_0107_1_1", description: "Assistance with Oxygen Management", rate: 52.86 },
+    { code: "01_046_0107_1_1", description: "Assistance with Complex Bowel Management", rate: 65.47 },
+    { code: "01_047_0107_1_1", description: "Assistance with Complex Wound Care", rate: 65.47 },
+    { code: "01_048_0107_1_1", description: "Assistance with Complex Continence Management", rate: 65.47 },
+    { code: "01_049_0107_1_1", description: "Assistance with Complex Medication Management", rate: 65.47 },
+    { code: "01_050_0107_1_1", description: "Assistance with Complex Diabetes Management", rate: 65.47 },
+    { code: "01_051_0107_1_1", description: "Assistance with Complex Epilepsy Management", rate: 65.47 },
+    { code: "01_052_0107_1_1", description: "Assistance with Complex PEG Feeding", rate: 65.47 },
+    { code: "01_053_0107_1_1", description: "Assistance with Complex Tracheostomy Care", rate: 65.47 },
+    { code: "01_054_0107_1_1", description: "Assistance with Complex Ventilator Management", rate: 65.47 },
+    { code: "01_055_0107_1_1", description: "Assistance with Complex Oxygen Management", rate: 65.47 },
+    { code: "01_056_0107_1_1", description: "Assistance with Complex Stoma Care", rate: 65.47 }
+  ];
+
+  // --- Global State Variables (populated by Firestore listeners) ---
+  window.currentWorkers = [];
+  window.currentParticipants = [];
+  window.currentJobs = [];
+  window.currentSmsRules = []; // New global for SMS rules
+
+  // --- DOM Elements ---
+  // Navigation
+  const navWorkerOnboarding = document.getElementById("navWorkerOnboarding");
+  const navWorkerList = document.getElementById("navWorkerList");
+  const navParticipantSignup = document.getElementById("navParticipantSignup");
+  const navParticipantList = document.getElementById("navParticipantList");
+  const navAssignCodes = document.getElementById("navAssignCodes");
+  const navInvoiceGenerator = document.getElementById("navInvoiceGenerator");
+  const navJobBuilder = document.getElementById("navJobBuilder");
+  const navSmsAutomation = document.getElementById("navSmsAutomation"); // New nav button
+
+  // Sections
+  const workerOnboardingSection = document.getElementById("workerOnboardingSection");
+  const workerListSection = document.getElementById("workerListSection");
+  const participantSignupSection = document.getElementById("participantSignupSection");
+  const participantListSection = document.getElementById("participantListSection");
+  const assignCodesSection = document.getElementById("assignCodesSection");
+  const invoiceGeneratorSection = document.getElementById("invoiceGeneratorSection");
+  const jobBuilderSection = document.getElementById("jobBuilderSection");
+  const smsAutomationSection = document.getElementById("smsAutomationSection"); // New section
+
+  // Worker Onboarding
+  const onboardWorkerName = document.getElementById("onboardWorkerName");
+  const onboardWorkerPhone = document.getElementById("onboardWorkerPhone");
+  const onboardWorkerEmail = document.getElementById("onboardWorkerEmail");
+  const onboardWorkerABN = document.getElementById("onboardWorkerABN");
+  const onboardWorkerAddress = document.getElementById("onboardWorkerAddress");
+  const onboardWorkerBSB = document.getElementById("onboardWorkerBSB");
+  const onboardWorkerAccount = document.getElementById("onboardWorkerAccount");
+  const onboardWorkerInvoiceStart = document.getElementById("onboardWorkerInvoiceStart");
+  const onboardWorkerGST = document.getElementById("onboardWorkerGST");
+  const completeOnboardingButton = document.getElementById("completeOnboarding");
+
+  // Worker List
+  const workerListDiv = document.getElementById("workerList");
+
+  // Participant Sign-up
+  const participantFullName = document.getElementById("participantFullName");
+  const participantNDISNumber = document.getElementById("participantNDISNumber");
+  const participantEmail = document.getElementById("participantEmail");
+  const participantAddress = document.getElementById("participantAddress");
+  const participantPaymentType = document.getElementById("participantPaymentType");
+  const planManagerName = document.getElementById("planManagerName");
+  const planManagerEmail = document.getElementById("planManagerEmail");
+  const planManagerPhone = document.getElementById("planManagerPhone");
+  const participantNotes = document.getElementById("participantNotes");
+  const completeParticipantSignup = document.getElementById("completeParticipantSignup");
+
+  // Participant List
+  const participantListDiv = document.getElementById("participantList");
+
+  // Assign NDIS Codes
+  const selectParticipantForCodes = document.getElementById("selectParticipantForCodes");
+  const ndisCodeSearch = document.getElementById("ndisCodeSearch");
+  const availableNdisCodesDiv = document.getElementById("availableNdisCodes");
+  const assignedNdisCodesDiv = document.getElementById("assignedNdisCodes");
+  const saveAssignedCodesButton = document.getElementById("saveAssignedCodes");
+
+  // Invoice Generator
+  const invoiceWorkerSelect = document.getElementById("invoiceWorkerSelect");
+  const invoiceParticipantSelect = document.getElementById("invoiceParticipantSelect");
+  const invoiceJobSelect = document.getElementById("invoiceJobSelect");
+  const invoiceSupportCode = document.getElementById("invoiceSupportCode");
+  const invoiceHourlyRate = document.getElementById("invoiceHourlyRate");
+  const invoiceHoursWorked = document.getElementById("invoiceHoursWorked");
+  const invoiceJobDate = document.getElementById("invoiceJobDate");
+  const invoiceJobNotes = document.getElementById("invoiceJobNotes");
+  const generateInvoiceButton = document.getElementById("generateInvoiceButton");
+  const sendTestInvoiceButton = document.getElementById("sendTestInvoiceButton");
+  const invoiceOutput = document.getElementById("invoiceOutput");
+
+  // Job Builder
+  const jobTitle = document.getElementById("jobTitle");
+  const jobDate = document.getElementById("jobDate");
+  const jobStartTime = document.getElementById("jobStartTime");
+  const jobEndTime = document.getElementById("jobEndTime");
+  const jobLocation = document.getElementById("jobLocation");
+  const jobDetails = document.getElementById("jobDetails");
+  const createJobButton = document.getElementById("createJobButton");
+
+  // SMS Automation
+  const smsIfCondition = document.getElementById("smsIfCondition");
+  const smsThenAction = document.getElementById("smsThenAction");
+  const addSmsRuleButton = document.getElementById("addSmsRuleButton");
+  const smsRulesListDiv = document.getElementById("smsRulesList");
+  const simulateSmsInput = document.getElementById("simulateSmsInput");
+  const triggerSmsRulesButton = document.getElementById("triggerSmsRulesButton");
+  const smsTriggerLog = document.getElementById("smsTriggerLog");
+
+  // Message box element
+  const messageBox = document.getElementById("messageBox");
+
+  // --- Utility Functions ---
+
+  // Function to display a message to the user
+  function showMessage(message, duration = 3000) {
+    messageBox.textContent = message;
+    messageBox.classList.add('show');
+    setTimeout(() => {
+      messageBox.classList.remove('show');
+    }, duration);
+  }
+
+  // Function to copy text to clipboard
+  function copyToClipboard(text, successMessage, errorMessage) {
+    const tempTextArea = document.createElement("textarea");
+    tempTextArea.value = text;
+    document.body.appendChild(tempTextArea);
+    tempTextArea.select();
+
+    try {
+      const successful = document.execCommand('copy');
+      const msg = successful ? successMessage : errorMessage;
+      showMessage(msg);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+      showMessage(errorMessage + " Please copy manually.");
+    } finally {
+      document.body.removeChild(tempTextArea);
+    }
+  }
+
+  // Function to clear form fields
+  function clearForm(formElements) {
+    formElements.forEach(element => {
+      if (element.type === 'text' || element.type === 'email' || element.type === 'tel' || element.type === 'number' || element.type === 'date' || element.type === 'time' || element.tagName === 'TEXTAREA') {
+        element.value = '';
+      } else if (element.tagName === 'SELECT') {
+        element.selectedIndex = 0; // Select the first option
+      }
+    });
+  }
+
+  // --- Firestore Data Handling ---
+
+  // Setup Firestore Real-time Listeners
+  window.setupFirestoreListeners = function() {
+    // Ensure auth.currentUser exists before setting up listeners
+    if (!auth.currentUser) {
+      console.warn("Auth user not available. Listeners will not be set up yet.");
+      return;
+    }
+    const currentUserId = auth.currentUser.uid;
+    console.log(`Setting up Firestore listeners for user: ${currentUserId} in app: ${appId}`);
+
+    // Listen for Workers
+    onSnapshot(window.collection(db, `artifacts/${appId}/users/${currentUserId}/workers`), (snapshot) => {
+      window.currentWorkers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      console.log(`Workers updated. Count: ${window.currentWorkers.length}`, window.currentWorkers);
+      renderWorkerList();
+      populateWorkerSelects();
+    }, (error) => {
+      console.error("Error fetching workers:", error);
+      showMessage("Error loading workers.", 3000);
+    });
+
+    // Listen for Participants
+    onSnapshot(window.collection(db, `artifacts/${appId}/users/${currentUserId}/participants`), (snapshot) => {
+      window.currentParticipants = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      console.log(`Participants updated. Count: ${window.currentParticipants.length}`, window.currentParticipants);
+      renderParticipantList();
+      populateParticipantSelects();
+      loadAssignedNdisCodes(); // Reload assigned codes when participants update
+    }, (error) => {
+      console.error("Error fetching participants:", error);
+      showMessage("Error loading participants.", 3000);
+    });
+
+    // Listen for Jobs
+    onSnapshot(window.collection(db, `artifacts/${appId}/users/${currentUserId}/jobs`), (snapshot) => {
+      window.currentJobs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      console.log(`Jobs updated. Count: ${window.currentJobs.length}`, window.currentJobs);
+      populateJobSelects();
+    }, (error) => {
+      console.error("Error fetching jobs:", error);
+      showMessage("Error loading jobs.", 3000);
+    });
+
+    // Listen for SMS Rules
+    onSnapshot(window.collection(db, `artifacts/${appId}/users/${currentUserId}/smsRules`), (snapshot) => {
+      window.currentSmsRules = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      console.log(`SMS Rules updated. Count: ${window.currentSmsRules.length}`, window.currentSmsRules);
+      renderSmsRulesList();
+    }, (error) => {
+      console.error("Error fetching SMS rules:", error);
+      showMessage("Error loading SMS rules.", 3000);
+    });
+  };
+
+  // --- Render Functions ---
+
+  function renderWorkerList() {
+    workerListDiv.innerHTML = '';
+    if (window.currentWorkers.length === 0) {
+      workerListDiv.innerHTML = '<p class="text-center text-gray-500">No support workers added yet.</p>';
+      return;
+    }
+    window.currentWorkers.forEach(worker => {
+      const workerCard = document.createElement('div');
+      workerCard.className = "card bg-gray-50 p-3 rounded-md border border-gray-200 text-sm";
+      // Format invoiceStart with INV- prefix and leading zeros
+      const displayInvoiceNum = String(worker.invoiceStart || 0).padStart(3, '0');
+      workerCard.innerHTML = `
+        <p><strong class="font-semibold">Name:</strong> ${worker.name}</p>
+        <p><strong class="font-semibold">Email:</strong> ${worker.email}</p>
+        <p><strong class="font-semibold">ABN:</strong> ${worker.abn}</p>
+        <p><strong class="font-semibold">Next Invoice #:</strong> INV-${displayInvoiceNum}</p>
+        <p class="text-xs text-gray-500 mt-1">ID: ${worker.id}</p>
+      `;
+      workerListDiv.appendChild(workerCard);
+    });
+  }
+
+  function renderParticipantList() {
+    participantListDiv.innerHTML = '';
+    if (window.currentParticipants.length === 0) {
+      participantListDiv.innerHTML = '<p class="text-center text-gray-500">No participants signed up yet.</p>';
+      return;
+    }
+    window.currentParticipants.forEach(participant => {
+      const participantCard = document.createElement('div');
+      participantCard.className = "card bg-gray-50 p-3 rounded-md border border-gray-200 text-sm";
+      participantCard.innerHTML = `
+        <p><strong class="font-semibold">Name:</strong> ${participant.fullName}</p>
+        <p><strong class="font-semibold">NDIS #:</strong> ${participant.ndisNumber}</p>
+        <p><strong class="font-semibold">Payment Type:</strong> ${participant.paymentType}</p>
+        ${participant.paymentType === 'Plan Managed' ? `<p><strong class="font-semibold">Plan Manager:</strong> ${participant.planManagerName}</p>` : ''}
+        <p class="text-xs text-gray-500 mt-1">ID: ${participant.id}</p>
+      `;
+      participantListDiv.appendChild(participantCard);
+    });
+  }
+
+  function populateWorkerSelects() {
+    // Clear existing options, keeping the first default one
+    Array.from(invoiceWorkerSelect.options).forEach((option, index) => {
+      if (index > 0) invoiceWorkerSelect.removeChild(option);
+    });
+
+    window.currentWorkers.forEach(worker => {
+      const option = document.createElement('option');
+      option.value = worker.id;
+      option.textContent = worker.name;
+      invoiceWorkerSelect.appendChild(option);
+    });
+  }
+
+  function populateParticipantSelects() {
+    // Clear existing options, keeping the first default one
+    Array.from(selectParticipantForCodes.options).forEach((option, index) => {
+      if (index > 0) selectParticipantForCodes.removeChild(option);
+    });
+    Array.from(invoiceParticipantSelect.options).forEach((option, index) => {
+      if (index > 0) invoiceParticipantSelect.removeChild(option);
+    });
+
+    window.currentParticipants.forEach(participant => {
+      const option1 = document.createElement('option');
+      option1.value = participant.id;
+      option1.textContent = participant.fullName;
+      selectParticipantForCodes.appendChild(option1);
+
+      const option2 = document.createElement('option');
+      option2.value = participant.id;
+      option2.textContent = participant.fullName;
+      invoiceParticipantSelect.appendChild(option2);
+    });
+  }
+
+  function populateJobSelects() {
+    // Clear existing options, keeping the first default one
+    Array.from(invoiceJobSelect.options).forEach((option, index) => {
+      if (index > 0) invoiceJobSelect.removeChild(option);
+    });
+
+    window.currentJobs.forEach(job => {
+      const participant = window.currentParticipants.find(p => p.id === job.participantId);
+      const worker = window.currentWorkers.find(w => w.id === job.workerId);
+      // Only show jobs that have both worker and participant linked for now
+      if (participant && worker) {
+        const option = document.createElement('option');
+        option.value = job.id;
+        option.textContent = `${job.title} (${participant.fullName} - ${worker.name} on ${job.date})`;
+        invoiceJobSelect.appendChild(option);
+      }
+    });
+  }
+
+  function renderAvailableNdisCodes(searchTerm = '') {
+    availableNdisCodesDiv.innerHTML = '';
+    const filteredCodes = ndisPriceGuide.filter(code =>
+      code.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      code.description.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    if (filteredCodes.length === 0) {
+      availableNdisCodesDiv.innerHTML = '<p class="text-center text-gray-500">No matching codes found.</p>';
+      return;
+    }
+
+    filteredCodes.forEach(code => {
+      const codeItem = document.createElement('div');
+      codeItem.className = "code-item text-gray-800";
+      codeItem.innerHTML = `
+        <span><strong class="font-mono text-blue-700">${code.code}</strong> - ${code.description} ($${code.rate})</span>
+        <button data-code='${JSON.stringify(code)}' class="add-code-button bg-green-500 hover:bg-green-600 text-white text-xs px-2 py-1 rounded-md">Add</button>
+      `;
+      availableNdisCodesDiv.appendChild(codeItem);
+    });
+
+    // Add event listeners to "Add" buttons
+    availableNdisCodesDiv.querySelectorAll('.add-code-button').forEach(button => {
+      button.addEventListener('click', (event) => {
+        const selectedParticipantId = selectParticipantForCodes.value;
+        if (!selectedParticipantId) {
+          showMessage("Please select a participant first.", 3000);
+          return;
+        }
+        const codeToAdd = JSON.parse(event.target.dataset.code);
+        const participant = window.currentParticipants.find(p => p.id === selectedParticipantId);
+        if (participant) {
+          if (!participant.assignedCodes) {
+            participant.assignedCodes = [];
+          }
+          // Check if code already exists to prevent duplicates
+          if (!participant.assignedCodes.some(c => c.code === codeToAdd.code)) {
+            participant.assignedCodes.push(codeToAdd);
+            renderAssignedNdisCodes(participant.assignedCodes);
+            showMessage(`Added ${codeToAdd.code} to ${participant.fullName}. Remember to Save!`, 3000);
+          } else {
+            showMessage(`${codeToAdd.code} is already assigned to this participant.`, 3000);
+          }
+        }
+      });
+    });
+  }
+
+  function renderAssignedNdisCodes(assignedCodes) {
+    assignedNdisCodesDiv.innerHTML = '';
+    if (!assignedCodes || assignedCodes.length === 0) {
+      assignedNdisCodesDiv.innerHTML = '<p class="text-center text-gray-500">No codes assigned yet.</p>';
+      return;
+    }
+    assignedCodes.forEach(code => {
+      const codeItem = document.createElement('div');
+      codeItem.className = "code-item text-gray-800";
+      codeItem.innerHTML = `
+        <span><strong class="font-mono text-purple-700">${code.code}</strong> - ${code.description} ($${code.rate})</span>
+        <button data-code='${JSON.stringify(code)}' class="remove-code-button bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1 rounded-md">Remove</button>
+      `;
+      assignedNdisCodesDiv.appendChild(codeItem);
+    });
+
+    // Add event listeners to "Remove" buttons
+    assignedNdisCodesDiv.querySelectorAll('.remove-code-button').forEach(button => {
+      button.addEventListener('click', (event) => {
+        const selectedParticipantId = selectParticipantForCodes.value;
+        if (!selectedParticipantId) return; // Should not happen if button is visible
+        const codeToRemove = JSON.parse(event.target.dataset.code);
+        const participant = window.currentParticipants.find(p => p.id === selectedParticipantId);
+        if (participant && participant.assignedCodes) {
+          participant.assignedCodes = participant.assignedCodes.filter(c => c.code !== codeToRemove.code);
+          renderAssignedNdisCodes(participant.assignedCodes);
+          showMessage(`Removed ${codeToRemove.code} from ${participant.fullName}. Remember to Save!`, 3000);
+        }
+      });
+    });
+  }
+
+  function loadAssignedNdisCodes() {
+    const selectedParticipantId = selectParticipantForCodes.value;
+    if (selectedParticipantId) {
+      const participant = window.currentParticipants.find(p => p.id === selectedParticipantId);
+      if (participant) {
+        renderAssignedNdisCodes(participant.assignedCodes);
+      } else {
+        assignedNdisCodesDiv.innerHTML = '<p class="text-center text-gray-500">Participant not found.</p>';
+      }
+    } else {
+      assignedNdisCodesDiv.innerHTML = '<p class="text-center text-gray-500">Select a participant to view assigned codes.</p>';
+    }
+  }
+
+  function renderSmsRulesList() {
+    smsRulesListDiv.innerHTML = '';
+    if (window.currentSmsRules.length === 0) {
+      smsRulesListDiv.innerHTML = '<p class="text-center text-gray-500">No rules defined yet.</p>';
+      return;
+    }
+    window.currentSmsRules.forEach(rule => {
+      const ruleItem = document.createElement('div');
+      ruleItem.className = "card bg-gray-50 p-3 rounded-md border border-gray-200 text-sm flex justify-between items-center";
+      ruleItem.innerHTML = `
+        <span><strong class="text-gray-700">IF</strong> "${rule.ifCondition}" &rarr; <strong class="text-gray-700">THEN</strong> <span class="font-mono text-green-700">${rule.thenAction}</span></span>
+        <button data-id="${rule.id}" class="remove-rule-button bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1 rounded-md">Remove</button>
+      `;
+      smsRulesListDiv.appendChild(ruleItem);
+    });
+
+    // Add event listeners to "Remove" buttons for SMS rules
+    smsRulesListDiv.querySelectorAll('.remove-rule-button').forEach(button => {
+      button.addEventListener('click', async (event) => {
+        if (!auth.currentUser) { showMessage("User not authenticated. Please wait.", 3000); return; }
+        const ruleIdToRemove = event.target.dataset.id;
+        try {
+          await window.deleteDoc(window.doc(db, `artifacts/${appId}/users/${auth.currentUser.uid}/smsRules`, ruleIdToRemove));
+          showMessage("Rule removed successfully!", 3000);
+        } catch (e) {
+          console.error("Error removing rule:", e);
+          showMessage("Error removing rule. See console for details.", 5000);
+        }
+      });
+    });
+  }
+
+  // --- Event Listeners ---
+
+  // Add Tailwind classes for common input elements
+  document.querySelectorAll('input, select, textarea').forEach(element => {
+    element.classList.add('input-field', 'block', 'w-full', 'p-2', 'border', 'border-gray-300', 'rounded-md', 'focus:ring', 'focus:ring-blue-200', 'focus:border-blue-500', 'transition-colors', 'duration-200', 'ease-in-out');
+  });
+
+  // Worker Onboarding Save
+  completeOnboardingButton.addEventListener("click", async () => {
+    if (!auth.currentUser) { showMessage("User not authenticated. Please wait.", 3000); return; }
+    console.log("Attempting to save worker for userId:", auth.currentUser.uid);
+
+    let invoiceStartNum = parseInt(onboardWorkerInvoiceStart.value);
+    if (isNaN(invoiceStartNum) || invoiceStartNum < 1) {
+      invoiceStartNum = 1; // Default to 1 if empty or invalid
+    }
+
+    const workerData = {
+      name: onboardWorkerName.value,
+      phone: onboardWorkerPhone.value,
+      email: onboardWorkerEmail.value,
+      abn: onboardWorkerABN.value,
+      address: onboardWorkerAddress.value,
+      bsb: onboardWorkerBSB.value,
+      acc: onboardWorkerAccount.value,
+      invoiceStart: invoiceStartNum, // Store as number
+      gst: onboardWorkerGST.value === 'Yes'
+    };
+
+    try {
+      const docRef = await window.addDoc(window.collection(db, `artifacts/${appId}/users/${auth.currentUser.uid}/workers`), workerData);
+      console.log("Worker saved with ID:", docRef.id);
+      showMessage("Support Worker saved successfully!", 3000);
+      clearForm([onboardWorkerName, onboardWorkerPhone, onboardWorkerEmail, onboardWorkerABN, onboardWorkerAddress, onboardWorkerBSB, onboardWorkerAccount, onboardWorkerInvoiceStart, onboardWorkerGST]);
+    } catch (e) {
+      console.error("Error adding worker document: ", e);
+      showMessage("Error saving Support Worker. See console for details.", 5000);
+    }
+  });
+
+  // Participant Sign-up Save
+  completeParticipantSignup.addEventListener("click", async () => {
+    if (!auth.currentUser) { showMessage("User not authenticated. Please wait.", 3000); return; }
+    console.log("Attempting to save participant for userId:", auth.currentUser.uid);
+
+    const participantData = {
+      fullName: participantFullName.value,
+      ndisNumber: participantNDISNumber.value,
+      email: participantEmail.value,
+      address: participantAddress.value,
+      paymentType: participantPaymentType.value,
+      planManagerName: planManagerName.value,
+      planManagerEmail: planManagerEmail.value,
+      planManagerPhone: planManagerPhone.value,
+      notes: participantNotes.value,
+      assignedCodes: [] // Initialize with empty array
+    };
+
+    try {
+      const docRef = await window.addDoc(window.collection(db, `artifacts/${appId}/users/${auth.currentUser.uid}/participants`), participantData);
+      console.log("Participant saved with ID:", docRef.id);
+      showMessage("Participant signed up successfully!", 3000);
+      clearForm([participantFullName, participantNDISNumber, participantEmail, participantAddress, participantPaymentType, planManagerName, planManagerEmail, planManagerPhone, participantNotes]);
+    } catch (e) {
+      console.error("Error adding participant document: ", e);
+      showMessage("Error signing up participant. See console for details.", 5000);
+    }
+  });
+
+  // Assign NDIS Codes - Select Participant Change
+  selectParticipantForCodes.addEventListener('change', () => {
+    loadAssignedNdisCodes();
+    renderAvailableNdisCodes(ndisCodeSearch.value); // Re-render available codes based on current search
+  });
+
+  // Assign NDIS Codes - Search Input
+  ndisCodeSearch.addEventListener('input', () => {
+    renderAvailableNdisCodes(ndisCodeSearch.value);
+  });
+
+  // Assign NDIS Codes - Save Assigned Codes
+  saveAssignedCodesButton.addEventListener('click', async () => {
+    if (!auth.currentUser) { showMessage("User not authenticated. Please wait.", 3000); return; }
+    const selectedParticipantId = selectParticipantForCodes.value;
+    if (!selectedParticipantId) {
+      showMessage("Please select a participant to save codes.", 3000);
+      return;
+    }
+
+    const participant = window.currentParticipants.find(p => p.id === selectedParticipantId);
+    if (participant) {
+      try {
+        const participantRef = window.doc(db, `artifacts/${appId}/users/${auth.currentUser.uid}/participants`, selectedParticipantId);
+        // Ensure assignedCodes is an array before saving
+        await window.updateDoc(participantRef, {
+          assignedCodes: participant.assignedCodes || []
+        });
+        console.log(`Assigned codes updated for participant: ${selectedParticipantId}`);
+        showMessage("Assigned NDIS codes saved successfully!", 3000);
+      } catch (e) {
+        console.error("Error updating participant codes: ", e);
+        showMessage("Error saving assigned codes. See console for details.", 5000);
+      }
+    } else {
+      showMessage("Selected participant not found.", 3000);
+    }
+  });
+
+  // Job Builder - Create Job & Save
+  createJobButton.addEventListener("click", async () => {
+    if (!auth.currentUser) { showMessage("User not authenticated. Please wait.", 3000); return; }
+    console.log("Attempting to save job for userId:", auth.currentUser.uid);
+
+    const jobData = {
+      title: jobTitle.value,
+      date: jobDate.value,
+      startTime: jobStartTime.value || null,
+      endTime: jobEndTime.value || null,
+      location: jobLocation.value,
+      details: jobDetails.value,
+      // You would typically link this to actual worker/participant IDs
+      // For now, these are placeholders or can be added later
+      workerId: null, // Placeholder for future linking
+      participantId: null // Placeholder for future linking
+    };
+
+    try {
+      const docRef = await window.addDoc(window.collection(db, `artifacts/${appId}/users/${auth.currentUser.uid}/jobs`), jobData);
+      console.log("Job saved with ID:", docRef.id);
+      showMessage("Job created and saved successfully!", 3000);
+      clearForm([jobTitle, jobDate, jobStartTime, jobEndTime, jobLocation, jobDetails]);
+    } catch (e) {
+      console.error("Error adding job document: ", e);
+      showMessage("Error creating job. See console for details.", 5000);
+    }
+  });
+
+  // Function to generate the invoice text (reusable for preview and email)
+  function generateInvoiceText() {
+    const workerId = invoiceWorkerSelect.value;
+    const participantId = invoiceParticipantSelect.value;
+    const jobId = invoiceJobSelect.value;
+
+    let worker = null;
+    let participant = null;
+    let job = null;
+
+    if (workerId) {
+      worker = window.currentWorkers.find(w => w.id === workerId);
+    }
+    if (participantId) {
+      participant = window.currentParticipants.find(p => p.id === participantId);
+    }
+    if (jobId) {
+      job = window.currentJobs.find(j => j.id === jobId);
+    }
+
+    if (!worker || !participant) {
+      return "Please select both a worker and a participant to generate an invoice.";
+    }
+
+    let supportCode = invoiceSupportCode.value;
+    let hourlyRate = parseFloat(invoiceHourlyRate.value);
+    let hours = parseFloat(invoiceHoursWorked.value);
+    let jobDateVal = invoiceJobDate.value;
+    let jobNotesVal = invoiceJobNotes.value;
+
+    if (job) {
+      // Use job details if a job is selected
+      // Prioritize manual input if provided, otherwise use job data
+      supportCode = supportCode || job.code || "N/A";
+      hourlyRate = isNaN(hourlyRate) ? (parseFloat(job.rate) || 0) : hourlyRate;
+      hours = isNaN(hours) ? (parseFloat(job.hours) || 0) : hours; // Assuming job might have hours
+      jobDateVal = jobDateVal || job.date || "N/A";
+      jobNotesVal = jobNotesVal || job.details || "N/A";
+    }
+
+    if (!supportCode || isNaN(hourlyRate) || isNaN(hours) || !jobDateVal) {
+      return "Please ensure Support Code, Hourly Rate, Hours Worked, and Job Date are provided (either from selected job or manually).";
+    }
+
+    const total = (hourlyRate * hours).toFixed(2);
+    // Format invoice number with INV- prefix and leading zeros
+    const formattedInvoiceNumber = `INV-${String(worker.invoiceStart || 0).padStart(3, '0')}`;
+
+    const invoiceContent = `
+INVOICE #: ${formattedInvoiceNumber}
+Issue Date: ${new Date().toISOString().split("T")[0]}
+
+Provider Details:
+  Name: ${worker.name}
+  ABN: ${worker.abn}
+  Address: ${worker.address}
+  Email: ${worker.email}
+  Bank: BSB ${worker.bsb} / Acc ${worker.acc}
+  GST Registered: ${worker.gst ? 'Yes' : 'No'}
+
+Bill To (Participant):
+  Name: ${participant.fullName}
+  NDIS #: ${participant.ndisNumber}
+  Address: ${participant.address}
+  Email: ${participant.email}
+  Payment Type: ${participant.paymentType}
+  ${participant.paymentType === 'Plan Managed' ? `
+  Plan Manager: ${participant.planManagerName || 'N/A'}
+  Manager Email: ${participant.planManagerEmail || 'N/A'}
+  Manager Phone: ${participant.planManagerPhone || 'N/A'}
+  ` : ''}
+
+Service Details:
+  Job Title: ${job ? job.title : 'Manual Entry'}
+  Support Code: ${supportCode}
+  Description: ${jobNotesVal}
+  Date: ${jobDateVal}
+  Hours: ${hours}
+  Hourly Rate: $${hourlyRate.toFixed(2)}
+
+Total Amount: $${total} ${worker.gst ? "(incl. GST)" : "(no GST)"}
+---------------------------------------------------
+    `;
+    return invoiceContent.trim();
+  }
+
+
+  // Invoice Generator - Generate Invoice Preview
+  generateInvoiceButton.addEventListener("click", async () => {
+    if (!auth.currentUser) { showMessage("User not authenticated. Please wait.", 3000); return; }
+
+    const invoiceText = generateInvoiceText();
+    invoiceOutput.textContent = invoiceText;
+
+    // Only attempt to increment if a valid worker is selected and invoice was generated successfully
+    const workerId = invoiceWorkerSelect.value;
+    const worker = window.currentWorkers.find(w => w.id === workerId);
+
+    if (worker && !invoiceText.startsWith("Please")) { // Check if it's not an error message
+      try {
+        const workerRef = window.doc(db, `artifacts/${appId}/users/${auth.currentUser.uid}/workers`, workerId);
+        await window.updateDoc(workerRef, {
+          invoiceStart: (worker.invoiceStart || 0) + 1
+        });
+        console.log(`Invoice number for ${worker.name} incremented to ${worker.invoiceStart + 1}`);
+        showMessage(`Invoice generated. Next invoice for ${worker.name} will be INV-${String((worker.invoiceStart || 0) + 1).padStart(3, '0')}.`, 4000);
+      } catch (e) {
+        console.error("Error incrementing worker invoice number: ", e);
+        showMessage("Error updating worker invoice number in Firestore.", 5000);
+      }
+    } else if (!worker) {
+      showMessage("Please select a worker to generate and track invoice numbers.", 3000);
+    }
+  });
+
+  // Invoice Generator - Send Test Invoice Email
+  sendTestInvoiceButton.addEventListener("click", () => {
+    const workerId = invoiceWorkerSelect.value;
+    const participantId = invoiceParticipantSelect.value;
+
+    const worker = window.currentWorkers.find(w => w.id === workerId);
+    const participant = window.currentParticipants.find(p => p.id === participantId);
+
+    if (!worker || !participant) {
+      showMessage("Please select both a worker and a participant to send a test invoice.", 3000);
+      return;
+    }
+
+    const invoiceText = generateInvoiceText();
+    if (invoiceText.startsWith("Please")) { // Check if generateInvoiceText returned an error
+      showMessage("Cannot send test email: " + invoiceText, 5000);
+      return;
+    }
+
+    let recipientEmail = participant.email;
+    let emailSubject = `NDIS Invoice from ${worker.name} for ${participant.fullName}`;
+
+    if (participant.paymentType === 'Plan Managed' && participant.planManagerEmail) {
+      recipientEmail = participant.planManagerEmail;
+      emailSubject = `NDIS Invoice for ${participant.fullName} (Managed by ${participant.planManagerName || 'Plan Manager'})`;
+    }
+
+    console.log("--- SIMULATING EMAIL SEND ---");
+    console.log("To:", recipientEmail);
+    console.log("Subject:", emailSubject);
+    console.log("Body:\n", invoiceText);
+    console.log("-----------------------------");
+
+    showMessage(`Test invoice email simulated to: ${recipientEmail}. Check console for details.`, 5000);
+  });
+
+  // SMS Automation - Add Rule
+  addSmsRuleButton.addEventListener("click", async () => {
+    if (!auth.currentUser) { showMessage("User not authenticated. Please wait.", 3000); return; }
+    const ifCondition = smsIfCondition.value.trim();
+    const thenAction = smsThenAction.value.trim();
+
+    if (!ifCondition || !thenAction) {
+      showMessage("Please fill in both 'IF' and 'THEN' fields for the rule.", 3000);
+      return;
+    }
+
+    const ruleData = {
+      ifCondition: ifCondition,
+      thenAction: thenAction
+    };
+
+    try {
+      await window.addDoc(window.collection(db, `artifacts/${appId}/users/${auth.currentUser.uid}/smsRules`), ruleData);
+      showMessage("SMS rule added successfully!", 3000);
+      clearForm([smsIfCondition, smsThenAction]);
+    } catch (e) {
+      console.error("Error adding SMS rule:", e);
+      showMessage("Error adding SMS rule. See console for details.", 5000);
+    }
+  });
+
+  // SMS Automation - Trigger Rules
+  triggerSmsRulesButton.addEventListener("click", () => {
+    const simulatedSms = simulateSmsInput.value.trim().toLowerCase();
+    smsTriggerLog.innerHTML = ''; // Clear previous log
+
+    if (!simulatedSms) {
+      smsTriggerLog.innerHTML = '<p class="text-center text-gray-500">Enter a message to simulate.</p>';
+      return;
+    }
+
+    let triggeredCount = 0;
+    window.currentSmsRules.forEach(rule => {
+      if (simulatedSms.includes(rule.ifCondition.toLowerCase())) {
+        const logEntry = document.createElement('p');
+        logEntry.className = "text-sm text-yellow-900";
+        logEntry.innerHTML = `<strong>TRIGGERED:</strong> IF "${rule.ifCondition}" THEN "${rule.thenAction}"`;
+        smsTriggerLog.appendChild(logEntry);
+        console.log(`SMS Rule Triggered: IF "${rule.ifCondition}" THEN "${rule.thenAction}" for SMS: "${simulatedSms}"`);
+        triggeredCount++;
+      }
+    });
+
+    if (triggeredCount === 0) {
+      smsTriggerLog.innerHTML = '<p class="text-center text-gray-500">No rules triggered by this SMS.</p>';
+    } else {
+      showMessage(`${triggeredCount} rule(s) triggered! Check log.`, 3000);
+    }
+  });
+
+
+  // --- Navigation Logic ---
+  function showSection(sectionId) {
+    // Get all sections
+    const allSections = [
+      workerOnboardingSection,
+      workerListSection,
+      participantSignupSection,
+      participantListSection,
+      assignCodesSection,
+      invoiceGeneratorSection,
+      jobBuilderSection,
+      smsAutomationSection // Include new section
+    ];
+
+    // Hide all sections
+    allSections.forEach(section => {
+      section.classList.add('hidden-section');
+    });
+
+    // Show the selected section
+    document.getElementById(sectionId).classList.remove('hidden-section');
+
+    // Update button styles
+    document.querySelectorAll('.nav-button').forEach(button => {
+      button.classList.remove('bg-blue-500', 'hover:bg-blue-600', 'text-white');
+      button.classList.add('bg-gray-300', 'hover:bg-gray-400', 'text-gray-800');
+    });
+
+    const activeButton = document.querySelector(`#nav${sectionId.replace('Section', '')}`);
+    if (activeButton) {
+      activeButton.classList.remove('bg-gray-300', 'hover:bg-gray-400', 'text-gray-800');
+      activeButton.classList.add('bg-blue-500', 'hover:bg-blue-600', 'text-white');
+    }
+
+    // Specific actions for certain sections
+    if (sectionId === 'assignCodesSection') {
+      renderAvailableNdisCodes(ndisCodeSearch.value); // Initial render of available codes
+      loadAssignedNdisCodes(); // Load assigned codes for the currently selected participant
+    }
+    // No specific action needed for invoice generator on show, as it relies on select changes
+  }
+
+  // Set initial section to Worker Onboarding
+  showSection('workerOnboardingSection');
+
+  // Event listeners for navigation buttons
+  navWorkerOnboarding.addEventListener("click", () => showSection('workerOnboardingSection'));
+  navWorkerList.addEventListener("click", () => showSection('workerListSection'));
+  navParticipantSignup.addEventListener("click", () => showSection('participantSignupSection'));
+  navParticipantList.addEventListener("click", () => showSection('participantListSection'));
+  navAssignCodes.addEventListener("click", () => showSection('assignCodesSection'));
+  navInvoiceGenerator.addEventListener("click", () => showSection('invoiceGeneratorSection'));
+  navJobBuilder.addEventListener("click", () => showSection('jobBuilderSection'));
+  navSmsAutomation.addEventListener("click", () => showSection('smsAutomationSection')); // New nav listener
+
+</script>
+</body>
+</html>
