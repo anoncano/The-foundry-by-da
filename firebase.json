@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "public": "nextjs-app/out",
+    "public": "public",
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "rewrites": [
       {"source": "**", "destination": "/index.html"}
