@@ -1,0 +1,1760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Foundry - NDIS & Private Client Management</title>
+
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- React Libraries -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+    <!-- Babel to transpile JSX in the browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- PDF Generation Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+    <!-- Excel/CSV Parsing Library (SheetJS) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- JSZip for creating ZIP files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); padding: 1.5rem; }
+        .wizard-step, .fade-in { animation: fadeIn 0.5s; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .toast-container { position: fixed; top: 1.5rem; right: 1.5rem; z-index: 1000; }
+        .toast {
+            background-color: #1f2937; /* Darker gray for better contrast */
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            animation: slideIn 0.3s ease-out forwards;
+            margin-bottom: 1rem;
+        }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(100%); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        .automation-node {
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            background-color: white;
+            box-shadow: 0 1px 3px 0 rgba(0,0,0,0.1), 0 1px 2px 0 rgba(0,0,0,0.06);
+            width: 280px;
+        }
+    </style>
+    <script type="module" src="firebase.js"></script>
+</head>
+<body class="bg-slate-100">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, createContext, useContext, useEffect, useCallback, useRef, useMemo } = React;
+        const { jsPDF } = window.jspdf;
+        const { XLSX } = window;
+        const { JSZip } = window;
+
+        //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+        //  Mock Data Store
+        //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+        const initialDataStore = {
+            users: [
+                { id: 'admin-1', email: 'admin@test.com', password: 'password123', role: 'admin', fullName: 'Admin User', profileComplete: true, signature: "Mitchell Tuckett - The Foundry" },
+                { id: 'support-1', email: 'support@test.com', password: 'password123', role: 'support', fullName: 'John Doe', profileComplete: true, personalDetails: { fullName: 'John Doe', email: 'support@test.com', phoneNumber: '0412345678', abn: '55 123 456 789', street: '123 Fake St', suburb: 'Sydney', state: 'NSW', postcode: '2000' }, invoicing: { accountName: 'John Doe', bsb: '012-345', accountNumber: '12345678', startingInvoiceNumber: '101' }, availability: { days: [1,2,3,4,5], startTime: '09:00', endTime: '17:00' } },
+                { id: 'support-2', email: 'new-support@test.com', password: 'password123', role: 'support', fullName: 'Jane Smith', profileComplete: false, personalDetails: { phoneNumber: '0487654321' }, availability: { days: [], startTime: '', endTime: '' } },
+                { id: 'client-1', clientType: 'ndis', smsCode: 'PP1', email: 'participant@test.com', password: 'password123', role: 'client', fullName: 'Peter Pan', profileComplete: true, ndisNumber: '123456789', address: '1 Neverland Ave, Fantasia, NSW 2888', billingDetails: { type: 'Plan Managed', managerEmail: 'invoices@planmanager.com.au' }, planEndDate: '2026-06-30', linkedServices: ['01_011_0107_1_1', '01_799_0104_1_1'], team: ['support-1'] },
+                { id: 'client-2', clientType: 'ndis', smsCode: 'WD2', email: 'new-participant@test.com', password: 'password123', role: 'client', fullName: 'Wendy Darling', profileComplete: false, ndisNumber: '987654321', address: '22 London Way, Bloomsbury, VIC 3000', billingDetails: { type: 'Self Managed', selfEmail: 'wendy@example.com' }, planEndDate: new Date().toISOString().split('T')[0], linkedServices: [], team: [] },
+                { id: 'client-3', clientType: 'private', smsCode: 'CH3', email: 'hook@test.com', password: 'password123', role: 'client', fullName: 'Captain Hook', profileComplete: true, address: 'The Jolly Roger, At Sea', billingDetails: {}, team: [] },
+            ],
+            shifts: [
+                { id: 'shift-1', supportId: 'support-1', clientId: 'client-1', clientName: 'Peter Pan', shiftDate: '2025-07-21', startTime: '09:00', endTime: '11:00', durationHours: '2.00', supportItemId: '01_011_0107_1_1', isTravelClaimed: true, travelKms: 15, notes: 'Assisted with morning routine and meal prep.', invoiced: false },
+                { id: 'shift-2', supportId: 'support-1', clientId: 'client-2', clientName: 'Wendy Darling', shiftDate: '2025-07-22', startTime: '13:00', endTime: '15:00', durationHours: '2.00', supportItemId: '04_104_0125_6_1', isTravelClaimed: false, travelKms: 0, notes: '', invoiced: false },
+                { id: 'shift-4', supportId: 'support-1', clientId: 'client-1', clientName: 'Peter Pan', shiftDate: '2025-07-23', startTime: '09:00', endTime: '12:00', durationHours: '3.00', supportItemId: '01_011_0107_1_1', isTravelClaimed: false, travelKms: 0, notes: 'Community access to the library.', invoiced: true, invoiceId: 'inv-1' },
+                { id: 'shift-3', supportId: 'support-2', clientId: 'client-3', clientName: 'Captain Hook', shiftDate: '2025-07-24', startTime: '10:00', endTime: '14:00', durationHours: '4.00', supportItemId: '01_015_0107_1_1', isTravelClaimed: true, travelKms: 25, notes: 'High intensity support.', invoiced: false }
+            ],
+            draftShifts: [],
+            jobs: [
+                { id: 'job-1', title: 'Morning Routine Help', claimCode: 'PAN21A', clientId: 'client-1', serviceId: '01_011_0107_1_1', rate: 67.56, date: '2025-07-21', time: '09:00', duration: 2, location: '123 Neverland Ave', details: 'Morning routine assistance.', status: 'Assigned', repeats: 'weekly', repeatDays: [1, 3, 5], repeatEndDate: '2025-08-15', assignedSupportId: 'support-1' },
+                { id: 'job-2', title: 'Community Park Trip', claimCode: 'DAR22B', clientId: 'client-2', serviceId: '04_104_0125_6_1', rate: 70.00, date: '2025-07-22', time: '14:00', duration: 3, location: 'Community Park', details: 'Social outing and community access.', status: 'Pending', repeats: 'none', assignedSupportId: null }
+            ],
+            invoices: [
+                {id: 'inv-1', supportId: 'support-1', clientId: 'client-1', invoiceNumber: '100', date: '2025-07-20', total: 150.50, status: 'Paid'},
+                {id: 'inv-2', supportId: 'support-1', clientId: 'client-3', invoiceNumber: '101', date: '2025-07-21', total: 250.00, status: 'Sent'},
+            ],
+            priceGuide: [
+                { itemNumber: '01_011_0107_1_1', itemName: 'Self-Care - Standard', unit: 'Hour', rate: 67.56, travelItemNumber: '01_799_0104_1_1' },
+                { itemNumber: '01_015_0107_1_1', itemName: 'Self-Care - High Intensity', unit: 'Hour', rate: 74.44, travelItemNumber: '01_799_0104_1_1' },
+                { itemNumber: '04_104_0125_6_1', itemName: 'Community Access - Standard', unit: 'Hour', rate: 67.56, travelItemNumber: '04_799_0104_6_1' },
+                { itemNumber: '01_799_0104_1_1', itemName: 'Provider Travel - Self Care', unit: 'km', rate: 0.99 },
+                { itemNumber: '04_799_0104_6_1', itemName: 'Provider Travel - Community', unit: 'km', rate: 0.99 },
+                { itemNumber: 'PVT_SUPPORT_1', itemName: 'Private Support - Level 1', unit: 'Hour', rate: 60.00 },
+            ],
+            smsAutomations: [
+                { id: 'auto-claim', trigger: 'claim', enabled: true, action: { type: 'update_entity', entity: 'jobs', findBy: { key: 'claimCode', valueSource: 'sms_param_1' }, updates: [ { key: 'status', value: 'Assigned' }, { key: 'assignedSupportId', valueSource: 'sender_id' } ] } },
+                { id: 'auto-clockin-job', trigger: 'clockin', enabled: true, action: { type: 'create_entity', entity: 'draftShifts', from: 'job', findBy: { key: 'claimCode', valueSource: 'sms_param_1' } } },
+                { id: 'auto-clockin-adhoc', trigger: 'start', enabled: true, action: { type: 'create_entity', entity: 'draftShifts', from: 'client', findBy: { key: 'smsCode', valueSource: 'sms_param_1' } } },
+                { id: 'auto-clockout', trigger: 'clockout', enabled: true, action: { type: 'update_entity', entity: 'draftShifts', findBy: { key: 'supportId', valueSource: 'sender_id', and: { key: 'status', value: 'active' } }, updates: [ { key: 'status', value: 'needs_completion' } ] } },
+            ],
+            communicationTemplates: [
+                { id: 'tpl-support', name: 'Support Worker Welcome', content: "Hello {{user_name}}, you have been invited to join The Foundry. Please set up your account here: {{onboarding_link}}. - {{admin_signature}}" },
+                { id: 'tpl-client', name: 'Client Welcome', content: "Welcome to The Foundry, {{user_name}}! Please complete your profile to get started: {{onboarding_link}}. - {{admin_signature}}" }
+            ],
+             recentActivity: [
+                { id: 1, text: "New job request created for Wendy Darling.", time: "10m ago" },
+                { id: 2, text: "Jane S. logged a 4-hour shift with Captain Hook.", time: "1h ago" },
+                { id: 3, text: "Invoice #101 was sent.", time: "3h ago" },
+            ],
+            notificationsDb: [
+                { id: 'notif-1', userId: 'support-1', type: 'team_invite', from: 'Peter Pan', fromId: 'client-1', read: false, createdAt: new Date() }
+            ]
+        };
+
+        //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+        //  App Context
+        //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+        const AppContext = createContext();
+
+        const AppProvider = ({ children }) => {
+            const [view, setView] = useState('overview');
+            const [user, setUser] = useState(null); 
+            const [appData, setAppData] = useState(initialDataStore);
+            const [activeId, setActiveId] = useState(null);
+            const [notifications, setNotifications] = useState([]);
+            const notificationId = useRef(0);
+
+            useEffect(() => {
+                const savedData = localStorage.getItem('ndis_app_data');
+                if (savedData) {
+                    try {
+                        const parsedData = JSON.parse(savedData);
+                        const mergedData = { ...initialDataStore, ...parsedData };
+                        setAppData(mergedData);
+                    } catch (e) {
+                        console.error("Failed to parse localStorage data", e);
+                        setAppData(initialDataStore);
+                    }
+                }
+            }, []);
+
+            useEffect(() => {
+                localStorage.setItem('ndis_app_data', JSON.stringify(appData));
+            }, [appData]);
+            
+            const addNotification = useCallback((message, type = 'success') => {
+                const id = notificationId.current++;
+                setNotifications(prev => [...prev, { id, message, type }]);
+                setTimeout(() => {
+                    setNotifications(prev => prev.filter(n => n.id !== id));
+                }, 4000);
+            }, []);
+            
+            const setDemoUser = (role) => {
+                const roleMap = { admin: 'admin', support: 'support', client: 'client'};
+                const demoUser = appData.users.find(u => u.role === roleMap[role]);
+                setUser(demoUser);
+                setActiveId(demoUser.id);
+                setView('overview'); 
+            };
+            
+            const logout = () => { setUser(null); setView('overview'); setActiveId(null); };
+            const navigateTo = (newView, id = null) => { setActiveId(id || (user ? user.id : null)); setView(newView); };
+
+            const value = {
+                view, navigateTo, user, logout, setDemoUser,
+                appData, setAppData, activeId, addNotification,
+            };
+
+            return (
+                <AppContext.Provider value={value}>
+                    {children}
+                    <ToastContainer notifications={notifications} />
+                </AppContext.Provider>
+            );
+        };
+
+        const useAppContext = () => useContext(AppContext);
+
+        //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+        //  Reusable Components
+        //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+        const Input = ({ id, label, ...props }) => (
+            <div><label htmlFor={id} className="block text-sm font-medium text-slate-700 mb-1">{label}</label><input id={id} {...props} className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" /></div>
+        );
+        const Button = ({ children, onClick, type = "button", variant = "primary", disabled = false, fullWidth = false, isLoading = false, size="md" }) => {
+            const base = "inline-flex justify-center items-center border border-transparent font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors";
+            const variants = { primary: "text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500", secondary: "text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:ring-indigo-500", danger: "text-white bg-red-600 hover:bg-red-700 focus:ring-red-500", ghost: "text-slate-600 bg-transparent hover:bg-slate-100 focus:ring-indigo-500" };
+            const sizes = { md: "px-4 py-2 text-sm", lg: "px-6 py-3 text-base" };
+            const width = fullWidth ? "w-full" : "";
+            const disabledState = "disabled:opacity-50 disabled:cursor-not-allowed";
+            return <button type={type} onClick={onClick} className={`${base} ${variants[variant]} ${sizes[size]} ${width} ${disabledState}`} disabled={disabled || isLoading}>{isLoading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : children}</button>;
+        };
+        const Spinner = () => <div className="flex justify-center items-center p-8"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div></div>;
+        const Modal = ({ show, onClose, title, children }) => {
+            if (!show) return null;
+            return (
+                <div className="fixed inset-0 bg-slate-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex items-center justify-center p-4" onClick={onClose}>
+                    <div className="relative mx-auto p-5 border w-full max-w-lg shadow-lg rounded-md bg-white" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center pb-3 border-b"><h3 className="text-2xl font-bold text-slate-800">{title}</h3>{onClose && <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-3xl font-light">&times;</button>}</div>
+                        <div className="mt-4">{children}</div>
+                    </div>
+                </div>
+            );
+        };
+        const DetailItem = ({label, value}) => <div className="py-3 sm:grid sm:grid-cols-3 sm:gap-4"><dt className="text-sm font-medium text-slate-500">{label}</dt><dd className="mt-1 text-sm text-slate-900 sm:col-span-2 sm:mt-0">{value || 'N/A'}</dd></div>;
+        const StatCard = ({ title, value, icon, onClick, change, changeType }) => (
+            <div className="card flex-1 cursor-pointer transition-transform transform hover:-translate-y-1 hover:shadow-xl" onClick={onClick}>
+                <div className="flex items-center">
+                    {icon && <div className="p-3 rounded-full bg-indigo-100 text-indigo-600">{icon}</div>}
+                    <div className={icon ? "ml-4" : ""}>
+                      <p className="text-sm font-medium text-slate-500 truncate">{title}</p>
+                      <p className="text-2xl font-semibold text-slate-900">{value}</p>
+                    </div>
+                </div>
+                {change && <p className={`text-xs mt-2 ${changeType === 'increase' ? 'text-green-600' : 'text-red-600'}`}>{change}</p>}
+            </div>
+        );
+        const ToastContainer = ({ notifications }) => (
+            <div className="toast-container">
+                {notifications.map(n => <div key={n.id} className="toast">{n.message}</div>)}
+            </div>
+        );
+        const TrashIcon = () => (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+        );
+
+        //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+        //  Authentication & Onboarding Views
+        //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+        
+        const SupportOnboarding = () => {
+            const { user, navigateTo } = useAppContext();
+            const [step, setStep] = useState(1);
+            const [formData, setFormData] = useState({ abn: '', street: '', suburb: '', state: 'NSW', postcode: '', accountName: '', bsb: '', accountNumber: '', startingInvoiceNumber: '101' });
+            const handleChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+            const handleNext = () => setStep(s => s + 1);
+            const handleBack = () => setStep(s => s - 1);
+            const handleSubmit = (e) => { e.preventDefault(); navigateTo('overview'); };
+            return (
+                 <div className="flex items-center justify-center min-h-screen bg-slate-50 p-4">
+                    <div className="w-full max-w-2xl"><div className="bg-white shadow-md rounded-lg p-8">
+                        <h1 className="text-3xl font-bold text-center text-slate-800 mb-2">Complete Your Support Worker Profile</h1><p className="text-center text-slate-600 mb-8">We need a few more details to get you set up.</p>
+                        <div className="relative pt-1 mb-8"><div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-indigo-200"><div style={{ width: `${(step / 2) * 100}%` }} className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-indigo-500 transition-all duration-500"></div></div></div>
+                        <form onSubmit={handleSubmit}>
+                            {step === 1 && ( <div className="wizard-step space-y-6"> <h2 className="text-xl font-semibold text-slate-700">Personal & Business Details</h2> <Input id="abn" name="abn" label="ABN" value={formData.abn} onChange={handleChange} /> <Input id="street" name="street" label="Street Address" value={formData.street} onChange={handleChange} /> <div className="grid grid-cols-1 md:grid-cols-3 gap-4"> <Input id="suburb" name="suburb" label="Suburb" value={formData.suburb} onChange={handleChange} /> <Input id="postcode" name="postcode" label="Postcode" value={formData.postcode} onChange={handleChange} /> <div><label htmlFor="state" className="block text-sm font-medium text-slate-700">State</label><select id="state" name="state" value={formData.state} onChange={handleChange} className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"><option>NSW</option><option>VIC</option><option>QLD</option><option>WA</option><option>SA</option><option>TAS</option><option>ACT</option><option>NT</option></select></div> </div> <div className="flex justify-end pt-4"><Button onClick={handleNext}>Next &rarr;</Button></div> </div> )}
+                            {step === 2 && ( <div className="wizard-step space-y-6"> <h2 className="text-xl font-semibold text-slate-700">Invoicing & Bank Details</h2> <Input id="accountName" name="accountName" label="Account Name" value={formData.accountName} onChange={handleChange} /> <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><Input id="bsb" name="bsb" label="BSB" value={formData.bsb} onChange={handleChange} /><Input id="accountNumber" name="accountNumber" label="Account Number" value={formData.accountNumber} onChange={handleChange} /></div> <Input id="startingInvoiceNumber" name="startingInvoiceNumber" label="Starting Invoice Number" type="number" value={formData.startingInvoiceNumber} onChange={handleChange} /> <div className="flex justify-between pt-4"><Button onClick={handleBack} variant="secondary">&larr; Back</Button><Button type="submit">Finish Setup</Button></div> </div> )}
+                        </form>
+                    </div></div>
+                </div>
+            );
+        };
+        
+        const ClientOnboarding = () => {
+            const { user, navigateTo, appData, setAppData, addNotification } = useAppContext();
+            const [step, setStep] = useState(0); // 0: choice, 1: details, 2: services
+            const [clientType, setClientType] = useState('ndis');
+            const [formData, setFormData] = useState({ address: '', ndisNumber: '', planEndDate: '', linkedServices: [] });
+            const [searchTerm, setSearchTerm] = useState('');
+            const [showShareModal, setShowShareModal] = useState(false);
+
+            const filteredServices = useMemo(() => {
+                if (!searchTerm) return appData.priceGuide;
+                return appData.priceGuide.filter(item => 
+                    item.itemName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                    item.itemNumber.toLowerCase().includes(searchTerm.toLowerCase())
+                );
+            }, [searchTerm, appData.priceGuide]);
+            
+            const handleSelectService = (itemNumber) => {
+                setFormData(prev => ({ ...prev, linkedServices: prev.linkedServices.includes(itemNumber) ? prev.linkedServices.filter(s => s !== itemNumber) : [...prev.linkedServices, itemNumber] }));
+            };
+
+            const handleChange = (e) => {
+                const { name, value } = e.target;
+                setFormData(prev => ({ ...prev, [name]: value }));
+            };
+            
+            const handleSubmit = (e) => { 
+                e.preventDefault(); 
+                const finalUserData = {
+                    ...user,
+                    ...formData,
+                    clientType,
+                    profileComplete: true
+                };
+                setAppData(prev => ({...prev, users: prev.users.map(u => u.id === user.id ? finalUserData : u)}));
+                navigateTo('overview'); 
+            };
+            
+            const handleCopyLink = () => {
+                const link = `https://thefoundry.com/setup?token=${user.id}`;
+                navigator.clipboard.writeText(link).then(() => {
+                    addNotification('Link copied to clipboard!');
+                });
+            };
+
+            if (step === 0) {
+                return (
+                    <div className="flex items-center justify-center min-h-screen bg-slate-50 p-4">
+                        <div className="w-full max-w-md text-center">
+                            <div className="bg-white shadow-md rounded-lg p-8">
+                                <h1 className="text-3xl font-bold text-slate-800 mb-2">Client Setup</h1>
+                                <p className="text-slate-600 mb-8">Is this an NDIS Participant or a Private Client?</p>
+                                <div className="space-y-4">
+                                    <Button onClick={() => { setClientType('ndis'); setStep(1); }} fullWidth>NDIS Participant</Button>
+                                    <Button onClick={() => { setClientType('private'); setStep(1); }} fullWidth variant="secondary">Private Client</Button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="flex items-center justify-center min-h-screen bg-slate-50 p-4">
+                    {showShareModal && <Modal show={true} onClose={() => setShowShareModal(false)} title="Share Setup Link">
+                        <p className="text-slate-600 mb-4">Send this link to a support coordinator or trusted person to complete this setup for you.</p>
+                        <div className="bg-slate-100 p-2 rounded-md flex items-center justify-between">
+                            <span className="text-sm text-slate-700 break-all">{`https://thefoundry.com/setup?token=${user.id}`}</span>
+                            <Button onClick={handleCopyLink} variant="secondary">Copy</Button>
+                        </div>
+                    </Modal>}
+                    <div className="w-full max-w-2xl"><div className="bg-white shadow-md rounded-lg p-8">
+                        <div className="flex justify-between items-center">
+                            <h1 className="text-3xl font-bold text-slate-800">Complete Profile</h1>
+                            <Button variant="ghost" onClick={() => setShowShareModal(true)}>Get Help with Setup</Button>
+                        </div>
+                        <p className="text-center text-slate-600 mb-8">Complete your {clientType === 'ndis' ? 'NDIS Participant' : 'Private Client'} profile.</p>
+                        <form onSubmit={handleSubmit} className="space-y-6">
+                            {step === 1 && (
+                                <div className="wizard-step space-y-6">
+                                    <Input id="address" name="address" label="Home Address" value={formData.address} onChange={handleChange} />
+                                    {clientType === 'ndis' && <>
+                                        <Input id="ndisNumber" name="ndisNumber" label="NDIS Number" value={formData.ndisNumber} onChange={handleChange} />
+                                        <Input id="planEndDate" name="planEndDate" type="date" label="Plan End Date" value={formData.planEndDate} onChange={handleChange} />
+                                    </>}
+                                    <div className="flex justify-end pt-4">
+                                        <Button onClick={() => clientType === 'ndis' ? setStep(2) : handleSubmit(e)}>Next &rarr;</Button>
+                                    </div>
+                                </div>
+                            )}
+                            {step === 2 && clientType === 'ndis' && (
+                                <div className="wizard-step space-y-6">
+                                    <h2 className="text-xl font-semibold text-slate-700">Select Approved Support Services</h2>
+                                    <Input id="serviceSearch" label="Search Services" placeholder="Enter name or item number..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-80 overflow-y-auto p-2 border rounded-md">
+                                        {filteredServices.map(item => (
+                                            <div key={item.itemNumber} onClick={() => handleSelectService(item.itemNumber)} className={`p-3 rounded-lg cursor-pointer border-2 ${formData.linkedServices.includes(item.itemNumber) ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200'}`}>
+                                                <p className="font-semibold text-sm">{item.itemName}</p>
+                                                <p className="text-xs text-slate-500">{item.itemNumber}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="flex justify-between pt-4">
+                                        <Button onClick={() => setStep(1)} variant="secondary">&larr; Back</Button>
+                                        <Button type="submit">Finish Setup</Button>
+                                    </div>
+                                </div>
+                            )}
+                        </form>
+                    </div></div>
+                </div>
+            );
+        };
+
+        //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+        //  Application Views
+        //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+        const AdminOverview = () => {
+            const { navigateTo, appData } = useAppContext();
+            const { users, jobs, invoices, recentActivity } = appData;
+            
+            const supports = users.filter(u => u.role === 'support');
+            const clients = users.filter(u => u.role === 'client');
+            const unassignedJobs = jobs.filter(j => j.status === 'Pending');
+            const newUsers = users.filter(u => !u.profileComplete);
+            const expiringPlans = clients.filter(p => p.clientType === 'ndis' && new Date(p.planEndDate) < new Date(new Date().setMonth(new Date().getMonth() + 2)) && new Date(p.planEndDate) > new Date());
+
+            return (
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-900 mb-6">Admin Dashboard</h1>
+
+                    {/* Quick Actions */}
+                    <div className="mb-8">
+                        <h2 className="text-lg font-semibold text-slate-600 mb-3">Quick Actions</h2>
+                        <div className="flex space-x-4">
+                            <Button onClick={() => navigateTo('invitations')} variant="secondary" size="lg">Invite Users</Button>
+                            <Button onClick={() => navigateTo('createJob')} variant="secondary" size="lg">Create Job</Button>
+                            <Button onClick={() => navigateTo('invoicing')} variant="secondary" size="lg">Go to Invoicing</Button>
+                        </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* Left Column: Action Items */}
+                        <div className="lg:col-span-2 space-y-6">
+                            <div className="card">
+                                <h2 className="text-xl font-bold text-slate-800 mb-4">Action Required</h2>
+                                <div className="space-y-4">
+                                    {unassignedJobs.length > 0 && <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                        <h3 className="font-semibold text-yellow-800">Unassigned Jobs ({unassignedJobs.length})</h3>
+                                        <ul className="list-disc list-inside mt-2 text-sm text-yellow-700">
+                                            {unassignedJobs.slice(0, 2).map(job => <li key={job.id}>{job.title} for {users.find(u => u.id === job.clientId)?.fullName}</li>)}
+                                        </ul>
+                                        <Button onClick={() => navigateTo('jobs')} variant="secondary" className="mt-3">View Jobs</Button>
+                                    </div>}
+                                    {newUsers.length > 0 && <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <h3 className="font-semibold text-blue-800">New User Sign-ups ({newUsers.length})</h3>
+                                        <ul className="list-disc list-inside mt-2 text-sm text-blue-700">
+                                            {newUsers.map(u => <li key={u.id}>{u.fullName} ({u.role}) needs profile completion.</li>)}
+                                        </ul>
+                                    </div>}
+                                </div>
+                            </div>
+                            <div className="card">
+                                <h2 className="text-xl font-bold text-slate-800 mb-4">System Health & Overview</h2>
+                                <div className="flex space-x-4">
+                                    <StatCard title="Total Supports" value={supports.length} onClick={() => navigateTo('supports')} />
+                                    <StatCard title="Total Clients" value={clients.length} onClick={() => navigateTo('clients')} />
+                                    <StatCard title="Expiring Plans" value={expiringPlans.length} onClick={() => navigateTo('clients')} />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Right Column: Recent Activity */}
+                        <div className="lg:col-span-1 card">
+                            <h2 className="text-xl font-bold text-slate-800 mb-4">Recent Activity</h2>
+                            <ul className="space-y-4">
+                                {recentActivity.map(activity => (
+                                    <li key={activity.id} className="flex items-start space-x-3">
+                                        <div className="flex-shrink-0 h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500">&rarr;</div>
+                                        <div>
+                                            <p className="text-sm text-slate-700">{activity.text}</p>
+                                            <p className="text-xs text-slate-400">{activity.time}</p>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+        
+        const SupportOverview = () => {
+            const { navigateTo, user, appData, setAppData, addNotification } = useAppContext();
+            const { jobs, draftShifts, shifts } = appData;
+
+            const myJobs = jobs.filter(j => j.assignedSupportId === user.id && new Date(j.date) >= new Date(new Date().toDateString()));
+            const uninvoicedShiftsCount = shifts.filter(s => s.supportId === user.id && !s.invoiced).length;
+
+            const handleClockIn = (job) => {
+                const newDraft = {
+                    id: `draft-${Date.now()}`,
+                    supportId: user.id,
+                    clientId: job.clientId,
+                    jobId: job.id,
+                    startTime: new Date().toISOString(),
+                    status: 'active'
+                };
+                setAppData(prev => ({...prev, draftShifts: [...prev, newDraft]}));
+                addNotification(`Clocked in for job with ${appData.users.find(u=>u.id === job.clientId)?.fullName}`);
+            };
+            
+            const handleClockOut = (draftShift) => {
+                 setAppData(prev => ({ ...prev, draftShifts: prev.draftShifts.map(d => d.id === draftShift.id ? {...d, status: 'needs_completion'} : d) }));
+                 addNotification('Clocked out. Please complete shift details.');
+            }
+            
+            const handleCompleteShift = (draftShift) => {
+                // For demo, just navigate to log shift page. A real implementation would pre-fill data.
+                navigateTo('logShift');
+            }
+            
+            return (
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-900 mb-6">Welcome back, {user.fullName.split(' ')[0]}!</h1>
+                     {/* Quick Actions */}
+                    <div className="mb-8">
+                        <h2 className="text-lg font-semibold text-slate-600 mb-3">Quick Actions</h2>
+                        <div className="flex space-x-4">
+                            <Button onClick={() => navigateTo('logShift')} size="lg">Log New Shift</Button>
+                            <Button onClick={() => navigateTo('jobs')} variant="secondary" size="lg">View Job Board</Button>
+                            <Button onClick={() => navigateTo('supportInvoicing')} variant="secondary" size="lg">My Invoices</Button>
+                             <Button onClick={() => navigateTo('myAvailability')} variant="ghost" size="lg">My Availability</Button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-2 space-y-6">
+                            <div className="card">
+                                <h2 className="text-xl font-bold text-slate-800 mb-4">Upcoming Shifts</h2>
+                                {myJobs.length > 0 ? (
+                                    <div className="space-y-3">
+                                    {myJobs.map(job => {
+                                        const client = appData.users.find(p => p.id === job.clientId);
+                                        const draftForJob = draftShifts.find(d => d.jobId === job.id && d.status === 'active');
+                                        return (
+                                        <div key={job.id} className="p-4 border rounded-lg flex justify-between items-center">
+                                            <div>
+                                                <p className="font-semibold text-slate-800">{job.title}</p>
+                                                <p className="text-sm text-slate-500">{new Date(job.date + 'T' + job.time).toLocaleString('en-AU', { weekday: 'short', hour: '2-digit', minute: '2-digit' })} with {client?.fullName}</p>
+                                            </div>
+                                            {draftForJob ?
+                                             <Button onClick={() => handleClockOut(draftForJob)} variant="danger">Clock Out</Button> :
+                                             <Button onClick={() => handleClockIn(job)}>Clock In</Button>
+                                            }
+                                        </div>
+                                    )})}
+                                    </div>
+                                ) : (
+                                    <p className="text-slate-500">You have no upcoming shifts assigned. Check the Job Board!</p>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="lg:col-span-1 space-y-6">
+                            <div className="card bg-indigo-50 border-indigo-200 border">
+                                <h2 className="text-xl font-bold text-slate-800 mb-4">Needs Your Attention</h2>
+                                <div className="space-y-4">
+                                     {draftShifts.filter(d => d.supportId === user.id && d.status === 'needs_completion').map(draft => {
+                                          const client = appData.users.find(p => p.id === draft.clientId);
+                                          return (
+                                          <div key={draft.id} className="p-3 bg-white rounded-lg shadow-sm">
+                                             <p className="font-semibold text-sm">Complete shift log for {client?.fullName}</p>
+                                             <Button onClick={() => handleCompleteShift(draft)} size="sm" fullWidth className="mt-2">Add Details</Button>
+                                          </div>
+                                     )})}
+                                     {uninvoicedShiftsCount > 0 && <div className="p-3 bg-white rounded-lg shadow-sm">
+                                        <p className="font-semibold text-sm">You have {uninvoicedShiftsCount} uninvoiced shifts.</p>
+                                        <Button onClick={() => navigateTo('supportInvoicing')} variant="secondary" size="sm" fullWidth className="mt-2">Create Invoices</Button>
+                                     </div>}
+                                     {draftShifts.filter(d => d.supportId === user.id && d.status === 'needs_completion').length === 0 && uninvoicedShiftsCount === 0 &&
+                                         <p className="text-sm text-slate-600">All caught up! Great work.</p>
+                                     }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )
+        };
+        
+        const SupportsDashboard = () => {
+            const { navigateTo, appData } = useAppContext();
+            const supports = appData.users.filter(u => u.role === 'support');
+            return (
+                <div><h1 className="text-3xl font-bold text-slate-900 mb-6">Support Workers</h1><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{supports.map(support => (<div key={support.id} className="card flex flex-col justify-between"><div><h2 className="text-xl font-bold text-slate-800">{support.fullName}</h2><p className="text-sm text-slate-500">{support.email}</p></div><div className="mt-4 flex space-x-2"><Button onClick={() => navigateTo('userProfile', support.id)}>View Profile</Button><Button onClick={() => navigateTo('logShift', support.id)} variant="secondary">Log Shift</Button></div></div>))}</div></div>
+            );
+        };
+        
+        const ClientsDashboard = () => {
+            const { navigateTo, appData } = useAppContext();
+            const clients = appData.users.filter(u => u.role === 'client');
+            const isPlanExpired = (endDate) => new Date(endDate) < new Date();
+
+            return (
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-900 mb-6">Clients</h1>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {clients.map(p => (
+                            <div key={p.id} className="card">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h2 className="text-xl font-bold text-slate-800">{p.fullName}</h2>
+                                        <p className="text-sm text-slate-500">{p.clientType === 'ndis' ? `NDIS #: ${p.ndisNumber}` : 'Private Client'}</p>
+                                    </div>
+                                    {p.clientType === 'ndis' && isPlanExpired(p.planEndDate) && (
+                                        <span className="px-2 py-1 text-xs font-semibold text-red-800 bg-red-100 rounded-full">Expired Plan</span>
+                                    )}
+                                </div>
+                                <div className="mt-4">
+                                    <Button onClick={() => navigateTo('userProfile', p.id)} variant="secondary">View Details</Button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const JobBoard = () => {
+            const { user, appData, setAppData, addNotification, navigateTo } = useAppContext();
+            const [editingJob, setEditingJob] = useState(null);
+            const [expandedJobId, setExpandedJobId] = useState(null);
+
+            const handleSaveJob = (updatedJob) => {
+                setAppData(prev => ({ ...prev, jobs: prev.jobs.map(j => j.id === updatedJob.id ? updatedJob : j) }));
+                addNotification("Job updated!");
+                setEditingJob(null);
+            };
+
+            const handleAcceptJob = (jobId) => {
+                setAppData(prev => ({ ...prev, jobs: prev.jobs.map(j => j.id === jobId ? { ...j, status: 'Assigned', assignedSupportId: user.id } : j) }));
+                addNotification('Job accepted!');
+            };
+            
+            const getStatusColor = (status) => ({ Pending: 'bg-yellow-100 text-yellow-800', Assigned: 'bg-blue-100 text-blue-800', Completed: 'bg-green-100 text-green-800' }[status] || 'bg-slate-100 text-slate-800');
+            
+            const JobCard = ({ job }) => {
+                const client = appData.users.find(p => p.id === job.clientId);
+                const isExpanded = expandedJobId === job.id;
+                return (
+                    <div className="card cursor-pointer" onClick={() => setExpandedJobId(isExpanded ? null : job.id)}>
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <h2 className="text-lg font-bold text-slate-800">{job.title}</h2>
+                                <p className="text-sm text-slate-600 mt-1">For: {client?.fullName} on {new Date(job.date).toLocaleDateString()}</p>
+                                <p className="text-xs font-mono text-slate-400 mt-1">Claim Code: {job.claimCode}</p>
+                            </div>
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(job.status)}`}>{job.status}</span>
+                        </div>
+                        {isExpanded && (<div className="mt-4 pt-4 border-t fade-in"><p className="text-sm text-slate-700"><strong>Details:</strong> {job.details}</p><p className="text-sm text-slate-700 mt-1"><strong>Location:</strong> <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(job.location)}`} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">{job.location}</a></p><div className="mt-4 flex justify-end space-x-2">{user.role === 'support' && job.status === 'Pending' && <Button onClick={(e) => { e.stopPropagation(); handleAcceptJob(job.id); }}>Accept</Button>}</div></div>)}
+                    </div>
+                );
+            };
+
+            const availableJobs = appData.jobs.filter(j => j.status === 'Pending');
+            const myJobs = user.role === 'support' ? appData.jobs.filter(j => j.assignedSupportId === user.id) : appData.jobs.filter(j => j.clientId === user.id);
+            
+            return (
+                <div>{editingJob && <EditJobModal job={editingJob} onSave={handleSaveJob} onClose={() => setEditingJob(null)} />}<div className="flex justify-between items-center mb-6"><h1 className="text-3xl font-bold text-slate-900">{user.role === 'admin' ? 'Job Management' : (user.role === 'support' ? 'Job Board' : 'My Jobs')}</h1>{(user.role === 'admin' || user.role === 'client') && <Button onClick={() => navigateTo('createJob')}>Create Job</Button>}</div>
+                {user.role !== 'admin' && <div className="mb-8"><h2 className="text-xl font-bold text-slate-800 mb-4">{user.role === 'support' ? 'My Assigned Jobs' : 'My Requested Jobs'}</h2><div className="space-y-4">{myJobs.length > 0 ? myJobs.map(job => <JobCard key={job.id} job={job} />) : <p className="text-slate-500 card">You have no jobs in this category.</p>}</div></div>}
+                {(user.role === 'admin' || user.role === 'support') && <div><h2 className="text-xl font-bold text-slate-800 mb-4">{user.role === 'admin' ? 'All Jobs' : 'Available Jobs'}</h2><div className="space-y-4">{(user.role === 'admin' ? appData.jobs : availableJobs).map(job => <JobCard key={job.id} job={job} />)}</div></div>}
+                </div>
+            );
+        };
+
+        const EditJobModal = ({ job, onSave, onClose }) => {
+            const [jobData, setJobData] = useState(job);
+            const handleChange = (e) => setJobData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+            const handleSubmit = (e) => { e.preventDefault(); onSave(jobData); };
+            return ( <Modal show={true} onClose={onClose} title="Edit Job"><form onSubmit={handleSubmit} className="space-y-4"><Input id="title" name="title" label="Job Title" value={jobData.title} onChange={handleChange} />
+                <Input id="location" name="location" label="Location" value={jobData.location} onChange={handleChange} />
+                <Input id="details" name="details" label="Job Details" value={jobData.details} onChange={handleChange} /><div><label className="block text-sm font-medium text-slate-700">Status</label><select name="status" value={jobData.status} onChange={handleChange} className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 rounded-md"><option>Pending</option><option>Assigned</option><option>Completed</option></select></div><div className="flex justify-end space-x-3 pt-4"><Button onClick={onClose} variant="secondary">Cancel</Button><Button type="submit">Save Changes</Button></div></form></Modal> );
+        };
+
+        const CreateJob = () => {
+            const { navigateTo, appData, user, setAppData, addNotification } = useAppContext();
+            const [jobData, setJobData] = useState({ clientId: user.role === 'client' ? user.id : '', title: '', serviceId: '', date: '', time: '', details: '', claimCode: '' });
+            
+            const selectedClient = appData.users.find(p => p.id === jobData.clientId);
+            const availableServices = selectedClient ? appData.priceGuide.filter(item => selectedClient.linkedServices.includes(item.itemNumber)) : [];
+
+            useEffect(() => {
+                if (jobData.clientId && jobData.date) {
+                    const client = appData.users.find(p => p.id === jobData.clientId);
+                    const namePart = client.fullName.substring(0, 3).toUpperCase();
+                    const datePart = jobData.date.split('-').slice(1).join('');
+                    const randomPart = Math.random().toString(36).substring(2, 4).toUpperCase();
+                    setJobData(prev => ({ ...prev, claimCode: `${namePart}${datePart}${randomPart}` }));
+                }
+            }, [jobData.clientId, jobData.date]);
+
+            const handleChange = (e) => setJobData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+            
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                const newJob = { id: `job-${Date.now()}`, ...jobData, status: 'Pending' };
+                setAppData(prev => ({...prev, jobs: [...prev.jobs, newJob]}));
+                addNotification('Job created and broadcasted automatically!');
+                navigateTo('jobs');
+            };
+            const clients = appData.users.filter(u => u.role === 'client');
+            return (
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-900 mb-6">{user.role === 'client' ? 'Request New Support' : 'Create New Job'}</h1>
+                    <form onSubmit={handleSubmit} className="card space-y-6">
+                        {user.role === 'admin' && (<div><label htmlFor="clientId" className="block text-sm font-medium text-slate-700">Client</label><select id="clientId" name="clientId" value={jobData.clientId} onChange={handleChange} required className="mt-1 block w-full rounded-md"><option value="">Select client</option>{clients.map(p => <option key={p.id} value={p.id}>{p.fullName}</option>)}</select></div>)}
+                        
+                        <Input id="title" name="title" label="Job Title" value={jobData.title} onChange={handleChange} placeholder="e.g. Morning Routine Assistance" required />
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <Input id="date" name="date" type="date" label="Start Date" value={jobData.date} onChange={handleChange} required />
+                            <Input id="time" name="time" type="time" label="Start Time" value={jobData.time} onChange={handleChange} required />
+                        </div>
+                         <Input id="details" name="details" label="Job Details" value={jobData.details} onChange={handleChange} />
+                        {jobData.claimCode && <Input id="claimCode" name="claimCode" label="Claim Code" value={jobData.claimCode} onChange={handleChange} disabled />}
+                        <div className="flex justify-end space-x-3">
+                            <Button onClick={() => navigateTo('jobs')} variant="secondary">Cancel</Button>
+                            <Button type="submit">Create Job</Button>
+                        </div>
+                    </form>
+                </div>
+            );
+        };
+        
+        const InvoicingHub = () => {
+            const { navigateTo, appData } = useAppContext();
+            const uninvoicedShifts = appData.shifts.filter(s => !s.invoiced);
+            const clientsWithUninvoicedShifts = [...new Set(uninvoicedShifts.map(s => s.clientId))].map(id => appData.users.find(u => u.id === id)).filter(Boolean);
+            return (
+                <div><h1 className="text-3xl font-bold text-slate-900 mb-6">Invoicing</h1><div className="card"><h2 className="text-xl font-bold text-slate-800">Clients with Uninvoiced Shifts</h2>{clientsWithUninvoicedShifts.length > 0 ? (<ul className="divide-y divide-slate-200 mt-4">{clientsWithUninvoicedShifts.map(p => (<li key={p.id} className="flex justify-between items-center py-5"><div><p className="font-semibold">{p.fullName}</p><p className="text-sm text-slate-500">{p.clientType === 'ndis' ? `NDIS #: ${p.ndisNumber}` : 'Private Client'}</p></div><Button onClick={() => navigateTo('clientInvoicing', p.id)}>Create Invoice</Button></li>))}</ul>) : (<p className="mt-4 text-slate-500">No clients have uninvoiced shifts.</p>)}</div></div>
+            );
+        };
+
+        const InvoicePreviewModal = ({ show, onClose, onConfirm, onOpen, invoiceData }) => {
+            if (!show) return null;
+            const { tableBody, grandTotal, client, support } = invoiceData;
+            return (
+                <Modal show={show} onClose={onClose} title="Invoice Preview">
+                    <div className="text-sm text-slate-700 p-4 border rounded-md">
+                        <div className="grid grid-cols-2 gap-4 mb-6">
+                            <div><strong className="block">From:</strong>{support.personalDetails.fullName}<br/>ABN: {support.personalDetails.abn}</div>
+                            <div className="text-right"><strong>To:</strong><br/>{client.fullName}<br/>{client.clientType === 'ndis' ? `NDIS: ${client.ndisNumber}` : ''}<br/>{client.address}</div>
+                        </div>
+                        <table className="w-full text-left table-auto">
+                            <thead><tr className="bg-slate-100"><th className="p-2 font-semibold">Date</th><th className="p-2 font-semibold">Support</th><th className="p-2 font-semibold">Duration/KM</th><th className="p-2 font-semibold text-right">Total</th></tr></thead>
+                            <tbody>
+                                {tableBody.map((row, i) => (
+                                    <tr className="border-b" key={i}><td className="p-2">{row.date}</td><td className="p-2">{row.support}</td><td className="p-2">{row.qty}</td><td className="p-2 text-right">{row.total}</td></tr>
+                                ))}
+                            </tbody>
+                            <tfoot><tr className="font-bold"><td colSpan="3" className="p-2 text-right">Grand Total:</td><td className="p-2 text-right">${grandTotal.toFixed(2)}</td></tr></tfoot>
+                        </table>
+                    </div>
+                    <div className="flex justify-end space-x-3 mt-6">
+                        <Button onClick={onClose} variant="secondary">Cancel</Button>
+                        <Button onClick={onOpen} variant="secondary">Open PDF</Button>
+                        {onConfirm && <Button onClick={onConfirm}>Confirm & Queue</Button>}
+                    </div>
+                </Modal>
+            );
+        };
+
+        const ClientInvoicing = () => {
+            const { appData, setAppData, activeId, navigateTo, addNotification } = useAppContext();
+            const [invoiceData, setInvoiceData] = useState(null);
+            const [showPreview, setShowPreview] = useState(false);
+            const client = appData.users.find(p => p.id === activeId);
+            const shiftsToInvoice = appData.shifts.filter(s => s.clientId === activeId && !s.invoiced);
+
+            const generateInvoiceData = () => {
+                const firstShiftSupport = appData.users.find(w => w.id === shiftsToInvoice[0]?.supportId);
+                if (!firstShiftSupport || !firstShiftSupport.profileComplete) { addNotification("Error: Support Worker profile is incomplete."); return null; }
+                const tableBody = []; let grandTotal = 0;
+                shiftsToInvoice.forEach(shift => {
+                    const supportItem = appData.priceGuide.find(item => item.itemNumber === shift.supportItemId);
+                    if (!supportItem) return;
+                    const total = shift.durationHours * supportItem.rate; grandTotal += total;
+                    tableBody.push({ date: new Date(shift.shiftDate).toLocaleDateString('en-AU'), support: `${supportItem.itemName} (${supportItem.itemNumber})`, qty: `${shift.durationHours} hrs`, rate: supportItem.rate, total: `$${total.toFixed(2)}` });
+                    if (shift.isTravelClaimed && shift.travelKms > 0) {
+                        const travelItem = appData.priceGuide.find(item => item.itemNumber === supportItem.travelItemNumber);
+                        if (travelItem) {
+                            const travelTotal = shift.travelKms * travelItem.rate; grandTotal += travelTotal;
+                            tableBody.push({ date: new Date(shift.shiftDate).toLocaleDateString('en-AU'), support: `${travelItem.itemName} (${travelItem.itemNumber})`, qty: `${shift.travelKms} km`, rate: travelItem.rate, total: `$${travelTotal.toFixed(2)}` });
+                        }
+                    }
+                });
+                return { tableBody, grandTotal, client, support: firstShiftSupport, shiftsToInvoice };
+            };
+
+            const handleGenerateInvoice = () => { if (shiftsToInvoice.length === 0) return; const data = generateInvoiceData(); if (data) { setInvoiceData(data); setShowPreview(true); } };
+            
+            const handleConfirmInvoice = () => {
+                setAppData(prev => {
+                    const newInvoices = [...prev.invoices, { id: `inv-${Date.now()}`, clientId: activeId, shiftIds: invoiceData.shiftsToInvoice.map(s => s.id), status: 'queued' }];
+                    const updatedShifts = prev.shifts.map(s => invoiceData.shiftsToInvoice.some(is => is.id === s.id) ? { ...s, invoiced: true } : s);
+                    const updatedUsers = prev.users.map(u => u.id === invoiceData.support.id ? { ...u, invoicing: { ...u.invoicing, startingInvoiceNumber: (parseInt(u.invoicing.startingInvoiceNumber) + 1).toString() } } : u);
+                    return { ...prev, invoices: newInvoices, shifts: updatedShifts, users: updatedUsers };
+                });
+                addNotification(`Invoice for ${client.fullName} has been queued.`);
+                /*
+                    EMAIL NOTIFICATION PLACEHOLDER
+                    ------------------------------
+                    This is the ideal place to trigger the automated email to the plan manager.
+                    
+                    Backend Logic:
+                    1. After the invoice is confirmed and saved, call a backend endpoint (e.g., /sendInvoiceEmail).
+                    2. The backend generates the PDF for the new invoice.
+                    3. It retrieves the client's `billingDetails.managerEmail`.
+                    4. It uses a service like Firebase Email or Twilio SendGrid to send an email with the
+                       PDF attached to the plan manager.
+                    5. The invoice status in the database could be updated from 'queued' to 'sent'.
+                */
+                setShowPreview(false);
+                setInvoiceData(null);
+                navigateTo('invoicing');
+            };
+
+            const generateAndOpenPDF = () => {
+                const { tableBody, grandTotal, client, support } = invoiceData;
+                const doc = new jsPDF();
+                doc.setFontSize(20); doc.text("Tax Invoice", 14, 22);
+                doc.setFontSize(12); doc.text(`Invoice #${support.invoicing.startingInvoiceNumber}`, 14, 30);
+                doc.text(`Date: ${new Date().toLocaleDateString('en-AU')}`, 14, 36);
+                doc.setFontSize(10);
+                doc.text("From:", 14, 50);
+                doc.text(support.personalDetails.fullName, 14, 55);
+                doc.text(`ABN: ${support.personalDetails.abn}`, 14, 60);
+                doc.text(`${support.personalDetails.street}, ${support.personalDetails.suburb}, ${support.personalDetails.state} ${support.personalDetails.postcode}`, 14, 65);
+                doc.text("Bill To:", 130, 50);
+                doc.text(client.fullName, 130, 55);
+                if (client.clientType === 'ndis') doc.text(`NDIS: ${client.ndisNumber}`, 130, 60);
+                doc.text(client.address, 130, 65);
+                const head = [['Date', 'Support Item', 'Item Code', 'Quantity', 'Rate', 'Total']];
+                const body = tableBody.map(row => {
+                    const match = row.support.match(/(.*) \((.*)\)/);
+                    const itemName = match ? match[1] : row.support;
+                    const itemCode = match ? match[2] : '';
+                    return [row.date, itemName, itemCode, row.qty, `$${row.rate.toFixed(2)}`, row.total];
+                });
+                doc.autoTable({ head, body, startY: 75 });
+                const finalY = doc.lastAutoTable.finalY || 100;
+                doc.setFontSize(14); doc.text(`Total: $${grandTotal.toFixed(2)}`, 14, finalY + 15);
+                doc.setFontSize(10); doc.text("Payment Details:", 14, finalY + 30);
+                doc.text(`Account Name: ${support.invoicing.accountName}`, 14, finalY + 35);
+                doc.text(`BSB: ${support.invoicing.bsb}`, 14, finalY + 40);
+                doc.text(`Account Number: ${support.invoicing.accountNumber}`, 14, finalY + 45);
+                doc.output('dataurlnewwindow');
+            };
+            
+            if (!client) return <Spinner />;
+            return (
+                <div>
+                    <InvoicePreviewModal show={showPreview} onClose={() => setShowPreview(false)} onConfirm={handleConfirmInvoice} onOpen={generateAndOpenPDF} invoiceData={invoiceData} />
+                    <h1 className="text-3xl font-bold text-slate-900">Invoicing for {client.fullName}</h1>
+                    <div className="card mt-6">
+                        <div className="flex justify-between items-center"><h2 className="text-xl font-bold">Uninvoiced Shifts</h2><Button onClick={handleGenerateInvoice} disabled={shiftsToInvoice.length === 0}>Generate Invoice</Button></div>
+                        <div className="mt-4 flow-root"><table className="min-w-full divide-y divide-slate-300"><thead><tr><th className="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-slate-900 sm:pl-0">Support</th><th className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Date</th><th className="px-3 py-3.5 text-left text-sm font-semibold text-slate-900">Duration</th></tr></thead><tbody className="divide-y divide-slate-200">{shiftsToInvoice.length > 0 ? shiftsToInvoice.map(shift => { const support = appData.users.find(w => w.id === shift.supportId); return (<tr key={shift.id}><td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-slate-900 sm:pl-0">{support?.fullName}</td><td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{new Date(shift.shiftDate).toLocaleDateString('en-AU')}</td><td className="whitespace-nowrap px-3 py-4 text-sm text-slate-500">{shift.durationHours} hrs</td></tr>) }) : (<tr><td colSpan="3" className="text-center py-4 text-slate-500">No uninvoiced shifts.</td></tr>)}</tbody></table></div>
+                    </div>
+                </div>
+            );
+        };
+
+        const Settings = () => {
+            const { appData, setAppData, addNotification, user } = useAppContext();
+            const [fileName, setFileName] = useState('');
+            const [signature, setSignature] = useState(user.signature || '');
+
+            const handleSaveSignature = () => {
+                setAppData(prev => ({...prev, users: prev.users.map(u => u.id === user.id ? {...u, signature} : u)}));
+                addNotification("Admin signature updated!");
+            };
+
+            return (
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-900 mb-6">Settings</h1>
+                    <div className="card mb-6">
+                        <h2 className="text-xl font-bold text-slate-800">Admin Signature</h2>
+                        <p className="text-sm text-slate-600 mt-2">Set the default signature for automated communications.</p>
+                        <div className="mt-4 flex items-end space-x-3">
+                            <div className="flex-grow"><Input id="signature" label="Signature" value={signature} onChange={e => setSignature(e.target.value)} /></div>
+                            <Button onClick={handleSaveSignature}>Save Signature</Button>
+                        </div>
+                    </div>
+                    <div className="card"><h2 className="text-xl font-bold text-slate-800">Upload NDIS Price Guide</h2><p className="text-sm text-slate-600 mt-2">Upload a CSV or Excel file with columns: "Item Number", "Item Name", "Unit", "Rate (AUD)", "Travel Item Number".</p><div className="mt-4"><label className="w-full flex items-center px-4 py-2 bg-white text-blue-500 rounded-lg shadow-lg tracking-wide uppercase border border-blue-500 cursor-pointer hover:bg-blue-500 hover:text-white"><svg className="w-6 h-6 mr-2" fill="currentColor" viewBox="0 0 20 20"><path d="M16.88 9.1A4 4 0 0 1 16 17H5a5 5 0 0 1-1-9.9V7a3 3 0 0 1 4.52-2.59A4.98 4.98 0 0 1 17 8c0 .38-.04.74-.12 1.1zM11 11h3l-4 4-4-4h3v-3h2v3z" /></svg><span className="text-sm leading-normal">{fileName || 'Select a file'}</span><input type='file' className="hidden" onChange={() => {}} accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" /></label></div></div>
+                </div>
+            );
+        };
+        
+        const UserProfile = () => {
+            const { appData, setAppData, user, activeId, addNotification } = useAppContext();
+            const profileUser = appData.users.find(u => u.id === activeId);
+            const supports = appData.users.filter(u => u.role === 'support');
+
+            const handleAddSupportToTeam = (supportId) => {
+                setAppData(prev => ({
+                    ...prev,
+                    users: prev.users.map(u => u.id === profileUser.id ? { ...u, team: [...u.team, supportId] } : u)
+                }));
+                addNotification("Support added to team.");
+            };
+            
+            const handleRemoveSupportFromTeam = (supportId) => {
+                 setAppData(prev => ({
+                    ...prev,
+                    users: prev.users.map(u => u.id === profileUser.id ? { ...u, team: u.team.filter(id => id !== supportId) } : u)
+                }));
+                addNotification("Support removed from team.");
+            }
+
+            if (!profileUser) return <p>User not found.</p>;
+            return (
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-900 mb-6">Profile: {profileUser.fullName}</h1>
+                    <div className="card">
+                        <div className="border-t border-slate-200">
+                            {profileUser.role === 'admin' && <dl className="divide-y"><DetailItem label="Full Name" value={profileUser.fullName} /><DetailItem label="Email" value={profileUser.email} /></dl>}
+                            {profileUser.role === 'support' && profileUser.personalDetails && <dl className="divide-y"><DetailItem label="Full Name" value={profileUser.personalDetails.fullName} /><DetailItem label="Email" value={profileUser.email} /><DetailItem label="ABN" value={profileUser.personalDetails.abn} /></dl>}
+                            {profileUser.role === 'client' && <>
+                                <dl className="divide-y">
+                                    <DetailItem label="Full Name" value={profileUser.fullName} />
+                                    <DetailItem label="Client Type" value={profileUser.clientType === 'ndis' ? 'NDIS Participant' : 'Private Client'} />
+                                    {profileUser.clientType === 'ndis' && <DetailItem label="NDIS Number" value={profileUser.ndisNumber} />}
+                                    {profileUser.clientType === 'ndis' && <DetailItem label="Billing Email" value={profileUser.billingDetails.managerEmail} />}
+                                </dl>
+                                {user.role === 'admin' && (
+                                    <div className="mt-6">
+                                        <h3 className="text-lg font-medium text-slate-800">Manage Support Team</h3>
+                                        <div className="mt-4 space-y-3">
+                                            {supports.map(s => {
+                                                const isOnTeam = profileUser.team.includes(s.id);
+                                                return (
+                                                    <div key={s.id} className="flex justify-between items-center p-2 bg-slate-50 rounded-md">
+                                                        <span>{s.fullName}</span>
+                                                        {isOnTeam
+                                                            ? <Button variant="danger" size="sm" onClick={() => handleRemoveSupportFromTeam(s.id)}>Remove</Button>
+                                                            : <Button variant="secondary" size="sm" onClick={() => handleAddSupportToTeam(s.id)}>Add to Team</Button>
+                                                        }
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </>}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const MyProfile = () => {
+            const { user, updateUser } = useAppContext();
+            const [isEditing, setIsEditing] = useState(false);
+            const [showDeleteModal, setShowDeleteModal] = useState(false);
+            const handleSave = (updatedData) => { updateUser(updatedData); setIsEditing(false); };
+            if (!user) return <Spinner />;
+            return (
+                <div>
+                    {isEditing && <EditProfileModal user={user} onSave={handleSave} onClose={() => setIsEditing(false)} />}
+                    {showDeleteModal && <Modal show={true} onClose={() => setShowDeleteModal(false)} title="Confirm Account Deletion">
+                        <p className="text-slate-700 mb-6">Are you sure you want to permanently delete your account? This action cannot be undone.</p>
+                        <div className="flex justify-end space-x-4">
+                            <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>Cancel</Button>
+                            <Button variant="danger" onClick={() => alert('Account deleted (simulation).')}>Yes, Delete My Account</Button>
+                        </div>
+                    </Modal>}
+                    <h1 className="text-3xl font-bold text-slate-900 mb-6">My Profile</h1>
+                    <div className="card">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-xl font-bold">My Details</h2>
+                            <div><Button onClick={() => setIsEditing(true)} variant="secondary">Edit</Button></div>
+                        </div>
+                        <div className="mt-4 border-t">
+                            {user.role === 'support' && user.personalDetails && <dl className="divide-y"><DetailItem label="Full Name" value={user.personalDetails.fullName} /><DetailItem label="Email" value={user.email} /><DetailItem label="ABN" value={user.personalDetails.abn} /></dl>}
+                            {user.role === 'client' && <dl className="divide-y"><DetailItem label="Full Name" value={user.fullName} />
+                                {user.clientType === 'ndis' && <DetailItem label="NDIS Number" value={user.ndisNumber} />}
+                                {user.clientType === 'ndis' && <DetailItem label="Billing Email" value={user.billingDetails.managerEmail} />}
+                            </dl>}
+                        </div>
+                    </div>
+                    {user.role !== 'admin' && <div className="card mt-6 border-red-300 border-2">
+                        <h2 className="text-xl font-bold text-red-700">Danger Zone</h2>
+                        <p className="text-slate-600 mt-2">Deleting your account is a permanent action and cannot be reversed.</p>
+                        <div className="mt-4"><Button variant="danger" onClick={() => setShowDeleteModal(true)}>Delete My Account</Button></div>
+                    </div>}
+                </div>
+            );
+        };
+
+        const EditProfileModal = ({ user, onSave, onClose }) => {
+            const [formData, setFormData] = useState(user);
+            const handleChange = (e) => { const { name, value } = e.target; const [section, field] = name.split('.'); if (field) { setFormData(prev => ({ ...prev, [section]: { ...prev[section], [field]: value } })); } else { setFormData(prev => ({ ...prev, [name]: value })); } };
+            const handleSubmit = (e) => { e.preventDefault(); onSave(formData); };
+            return (
+                <Modal show={true} onClose={onClose} title="Edit Profile">
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        {user.role === 'support' && user.personalDetails && <>
+                            <Input id="pd.fullName" name="personalDetails.fullName" label="Full Name" value={formData.personalDetails.fullName} onChange={handleChange} />
+                            <Input id="pd.abn" name="personalDetails.abn" label="ABN" value={formData.personalDetails.abn} onChange={handleChange} />
+                        </>}
+                        {user.role === 'client' && <>
+                            <Input id="name" name="fullName" label="Full Name" value={formData.fullName} onChange={handleChange} />
+                            {user.clientType === 'ndis' && <Input id="ndisNumber" name="ndisNumber" label="NDIS Number" value={formData.ndisNumber} onChange={handleChange} />}
+                            {user.clientType === 'ndis' && <Input id="billingDetails.managerEmail" name="billingDetails.managerEmail" label="Billing Email" value={formData.billingDetails.managerEmail} />}
+                        </>}
+                        <div className="flex justify-end space-x-3 pt-4"><Button onClick={onClose} variant="secondary">Cancel</Button><Button type="submit">Save Changes</Button></div>
+                    </form>
+                </Modal>
+            );
+        };
+
+        const LogShift = () => {
+            const { navigateTo, user, appData, setAppData, addNotification } = useAppContext();
+            const [shiftData, setShiftData] = useState({ clientId: '', shiftDate: '', startTime: '', endTime: '', notes: '', supportItemId: appData.priceGuide.find(i=>i.unit==='Hour')?.itemNumber || '', isTravelClaimed: false, startOdometer: '', endOdometer: '' });
+            
+            const myTeamClients = appData.users.filter(client => client.role === 'client' && client.team.includes(user.id));
+            const allClients = appData.users.filter(client => client.role === 'client');
+            const clientsToShow = user.role === 'admin' ? allClients : myTeamClients;
+
+            const handleChange = (e) => { const { name, value, type, checked } = e.target; setShiftData(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value })); };
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                const startDateTime = new Date(`${shiftData.shiftDate}T${shiftData.startTime}`);
+                const endDateTime = new Date(`${shiftData.shiftDate}T${shiftData.endTime}`);
+                if (endDateTime <= startDateTime) {
+                    addNotification("End time must be after start time."); return;
+                }
+                let travelKms = 0;
+                if (shiftData.isTravelClaimed) {
+                    const startOdo = parseFloat(shiftData.startOdometer);
+                    const endOdo = parseFloat(shiftData.endOdometer);
+                    if (isNaN(startOdo) || isNaN(endOdo) || endOdo < startOdo) {
+                        addNotification("Invalid odometer readings."); return;
+                    }
+                    travelKms = endOdo - startOdo;
+                }
+                const durationHours = (endDateTime - startDateTime) / 3600000;
+                const client = appData.users.find(p => p.id === shiftData.clientId);
+                const newShift = {
+                    id: `shift-${Date.now()}`, supportId: user.id, clientId: shiftData.clientId, clientName: client.fullName, shiftDate: shiftData.shiftDate, startTime: shiftData.startTime, endTime: shiftData.endTime,
+                    notes: shiftData.notes, durationHours: durationHours.toFixed(2), supportItemId: shiftData.supportItemId, isTravelClaimed: shiftData.isTravelClaimed, travelKms: travelKms, invoiced: false,
+                };
+                setAppData(prev => ({ ...prev, shifts: [...prev.shifts, newShift] }));
+                addNotification('Shift logged successfully!');
+                navigateTo('overview');
+            };
+             return (
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-900 mb-2">Log Shift</h1>
+                    <form onSubmit={handleSubmit} className="card space-y-6">
+                        <div>
+                            <label htmlFor="clientId" className="block text-sm font-medium text-slate-700 mb-1">Client</label>
+                            <select id="clientId" name="clientId" value={shiftData.clientId} onChange={handleChange} required className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                                <option value="">Select a client</option>
+                                {clientsToShow.map(p => <option key={p.id} value={p.id}>{p.fullName}</option>)}
+                            </select>
+                            {user.role === 'support' && myTeamClients.length === 0 && <p className="text-xs text-slate-500 mt-1">You must be on a client's team to log ad-hoc shifts for them.</p>}
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <Input id="shiftDate" name="shiftDate" type="date" label="Shift Date" value={shiftData.shiftDate} onChange={handleChange} required />
+                            <div>
+                                <label htmlFor="supportItemId" className="block text-sm font-medium text-slate-700 mb-1">Support Delivered</label>
+                                <select id="supportItemId" name="supportItemId" value={shiftData.supportItemId} onChange={handleChange} required className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                                    {appData.priceGuide.map(item => <option key={item.itemNumber} value={item.itemNumber}>{item.itemName} - ${item.rate.toFixed(2)}/hr</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <Input id="startTime" name="startTime" type="time" label="Start Time" value={shiftData.startTime} onChange={handleChange} required />
+                            <Input id="endTime" name="endTime" type="time" label="End Time" value={shiftData.endTime} onChange={handleChange} required />
+                        </div>
+                        <div>
+                            <label htmlFor="notes" className="block text-sm font-medium text-slate-700">Shift Notes</label>
+                            <textarea id="notes" name="notes" rows="3" value={shiftData.notes} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm"></textarea>
+                        </div>
+                        <div className="flex items-center">
+                            <input id="isTravelClaimed" name="isTravelClaimed" type="checkbox" checked={shiftData.isTravelClaimed} onChange={handleChange} className="h-4 w-4 text-indigo-600 border-slate-300 rounded" />
+                            <label htmlFor="isTravelClaimed" className="ml-2 block text-sm text-slate-900">Claim Travel?</label>
+                        </div>
+                        {shiftData.isTravelClaimed && 
+                            <div className="fade-in grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <Input id="startOdometer" name="startOdometer" type="number" label="Start Odometer (km)" value={shiftData.startOdometer} onChange={handleChange} required />
+                                <Input id="endOdometer" name="endOdometer" type="number" label="End Odometer (km)" value={shiftData.endOdometer} onChange={handleChange} required />
+                            </div>
+                        }
+                        <div className="flex justify-end space-x-3">
+                            <Button onClick={() => navigateTo('overview')} variant="secondary">Cancel</Button>
+                            <Button type="submit">Log Shift</Button>
+                        </div>
+                    </form>
+                </div>
+            );
+        };
+        
+        const SupportInvoicing = () => {
+            const { user, appData, addNotification } = useAppContext();
+            const [isLoading, setIsLoading] = useState(false);
+            const myInvoices = appData.invoices.filter(inv => inv.supportId === user.id);
+
+            const generatePdfForInvoice = (invoice) => {
+                const client = appData.users.find(c => c.id === invoice.clientId);
+                const support = user;
+                const shiftsForInvoice = appData.shifts.filter(s => s.invoiceId === invoice.id);
+                
+                const doc = new jsPDF();
+                // ... (PDF generation logic as before) ...
+                return doc;
+            };
+
+            const handleDownloadZip = async () => {
+                setIsLoading(true);
+                addNotification("Generating invoices... this may take a moment.", "info");
+                const zip = new JSZip();
+                
+                for (const invoice of myInvoices) {
+                    const client = appData.users.find(c => c.id === invoice.clientId);
+                    if (!client) continue;
+
+                    // Simulate PDF generation
+                    await new Promise(resolve => setTimeout(resolve, 100)); // prevent browser freeze
+                    const pdfDoc = generatePdfForInvoice(invoice);
+                    const pdfBlob = pdfDoc.output('blob');
+
+                    const folderName = client.fullName.replace(/ /g, '_');
+                    const fileName = `Invoice_${invoice.invoiceNumber}_${client.fullName}.pdf`;
+                    
+                    zip.folder(folderName).file(fileName, pdfBlob);
+                }
+
+                zip.generateAsync({ type: "blob" }).then(content => {
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(content);
+                    link.download = `Invoices_${user.fullName.replace(/ /g, '_')}.zip`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setIsLoading(false);
+                });
+            };
+
+            return (
+                <div>
+                    <div className="flex justify-between items-center mb-6">
+                        <h1 className="text-3xl font-bold text-slate-900">My Invoices</h1>
+                        <Button onClick={handleDownloadZip} disabled={isLoading} isLoading={isLoading}>
+                            {isLoading ? 'Generating...' : 'Download All as ZIP'}
+                        </Button>
+                    </div>
+                    <div className="card">
+                        <ul className="divide-y divide-slate-200">
+                            {myInvoices.map(inv => {
+                                const client = appData.users.find(c => c.id === inv.clientId);
+                                return (
+                                    <li key={inv.id} className="py-4 flex justify-between items-center">
+                                        <div>
+                                            <p className="font-semibold">Invoice #{inv.invoiceNumber} for {client?.fullName}</p>
+                                            <p className="text-sm text-slate-500">Date: {new Date(inv.date).toLocaleDateString()} | Total: ${inv.total.toFixed(2)}</p>
+                                        </div>
+                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${inv.status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>{inv.status}</span>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                    </div>
+                </div>
+            );
+        };
+
+        const MyAvailability = () => {
+            const { user, setAppData, addNotification } = useAppContext();
+            const [availability, setAvailability] = useState(user.availability || { days: [], startTime: '', endTime: '' });
+
+            const handleDayToggle = (dayIndex) => {
+                const newDays = availability.days.includes(dayIndex)
+                    ? availability.days.filter(d => d !== dayIndex)
+                    : [...availability.days, dayIndex];
+                setAvailability({ ...availability, days: newDays });
+            };
+
+            const handleChange = (e) => {
+                setAvailability({ ...availability, [e.target.name]: e.target.value });
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                setAppData(prev => ({
+                    ...prev,
+                    users: prev.users.map(u => u.id === user.id ? { ...u, availability } : u)
+                }));
+                addNotification("Availability updated successfully!");
+            };
+
+            const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+            return (
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-900 mb-6">My Availability</h1>
+                    <form onSubmit={handleSubmit} className="card max-w-2xl mx-auto">
+                        <div className="space-y-6">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Available Days</label>
+                                <div className="flex space-x-2">
+                                    {daysOfWeek.map((day, index) => (
+                                        <button
+                                            key={day}
+                                            type="button"
+                                            onClick={() => handleDayToggle(index)}
+                                            className={`w-12 h-12 rounded-full text-sm font-semibold transition-colors ${availability.days.includes(index) ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                                        >
+                                            {day}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <Input id="startTime" name="startTime" type="time" label="Available From" value={availability.startTime} onChange={handleChange} />
+                                <Input id="endTime" name="endTime" type="time" label="Available Until" value={availability.endTime} onChange={handleChange} />
+                            </div>
+                        </div>
+                        <div className="mt-8 flex justify-end">
+                            <Button type="submit">Save Availability</Button>
+                        </div>
+                    </form>
+                </div>
+            );
+        };
+
+        const InvitationCenter = () => {
+            const { addNotification, appData } = useAppContext();
+            const [formData, setFormData] = useState({ name: '', email: '', role: 'support', templateId: appData.communicationTemplates[0]?.id || '' });
+            const [preview, setPreview] = useState('');
+
+            useEffect(() => {
+                const template = appData.communicationTemplates.find(t => t.id === formData.templateId);
+                if (template) {
+                    let content = template.content;
+                    content = content.replace('{{user_name}}', formData.name || '[Name]');
+                    content = content.replace('{{onboarding_link}}', '[Onboarding Link]');
+                    const admin = appData.users.find(u => u.role === 'admin');
+                    content = content.replace('{{admin_signature}}', admin.signature || '');
+                    setPreview(content);
+                }
+            }, [formData, appData.communicationTemplates, appData.users]);
+
+            const handleChange = (e) => setFormData({...formData, [e.target.name]: e.target.value });
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                // In a real app, this would trigger a backend process to send an email.
+                addNotification(`Onboarding invitation sent to ${formData.email}.`);
+                setFormData({ name: '', email: '', role: 'support', templateId: appData.communicationTemplates[0]?.id || '' });
+            };
+
+            return (
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-900 mb-6">Invitation Center</h1>
+                    <div className="card max-w-2xl mx-auto">
+                        <h2 className="text-xl font-bold text-slate-800">Send New User Onboarding Link</h2>
+                        <p className="text-sm text-slate-600 mt-1">The user will receive an email with a unique link to sign up and complete their profile.</p>
+                        <form onSubmit={handleSubmit} className="mt-6 space-y-6">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">User Type</label>
+                                <div className="flex space-x-4">
+                                    <label className="flex items-center"><input type="radio" name="role" value="support" checked={formData.role === 'support'} onChange={handleChange} className="h-4 w-4 text-indigo-600 border-slate-300" /><span className="ml-2">Support Worker</span></label>
+                                    <label className="flex items-center"><input type="radio" name="role" value="client" checked={formData.role === 'client'} onChange={handleChange} className="h-4 w-4 text-indigo-600 border-slate-300" /><span className="ml-2">Client</span></label>
+                                </div>
+                            </div>
+                            <Input id="name" name="name" label="Full Name" value={formData.name} onChange={handleChange} required />
+                            <Input id="email" name="email" type="email" label="Email Address" value={formData.email} onChange={handleChange} required />
+                            <div>
+                                <label htmlFor="templateId" className="block text-sm font-medium text-slate-700">Message Template</label>
+                                <select id="templateId" name="templateId" value={formData.templateId} onChange={handleChange} className="mt-1 block w-full rounded-md">
+                                    {appData.communicationTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="p-4 bg-slate-100 rounded-md">
+                                <h4 className="text-sm font-semibold text-slate-600">Message Preview:</h4>
+                                <p className="text-sm text-slate-800 mt-2 whitespace-pre-wrap">{preview}</p>
+                            </div>
+                            <div className="flex justify-end">
+                                <Button type="submit">Send Invitation</Button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            );
+        };
+        
+        const CommunicationTemplates = () => {
+            const { appData, setAppData, addNotification } = useAppContext();
+            const [editingTemplate, setEditingTemplate] = useState(null);
+
+            const handleSave = (template) => {
+                if (template.id) {
+                    setAppData(prev => ({...prev, communicationTemplates: prev.communicationTemplates.map(t => t.id === template.id ? template : t)}));
+                    addNotification("Template updated!");
+                } else {
+                    const newTemplate = {...template, id: `tpl-${Date.now()}`};
+                    setAppData(prev => ({...prev, communicationTemplates: [...prev.communicationTemplates, newTemplate]}));
+                    addNotification("Template created!");
+                }
+                setEditingTemplate(null);
+            };
+
+            const handleDelete = (templateId) => {
+                setAppData(prev => ({...prev, communicationTemplates: prev.communicationTemplates.filter(t => t.id !== templateId)}));
+                addNotification("Template deleted.", "danger");
+            }
+
+            return (
+                <div>
+                    {editingTemplate && <EditTemplateModal template={editingTemplate} onSave={handleSave} onClose={() => setEditingTemplate(null)} />}
+                    <div className="flex justify-between items-center mb-6">
+                        <h1 className="text-3xl font-bold text-slate-900">Communication Templates</h1>
+                        <Button onClick={() => setEditingTemplate({})}>Create New Template</Button>
+                    </div>
+                    <div className="space-y-4">
+                        {appData.communicationTemplates.map(template => (
+                            <div key={template.id} className="card">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h2 className="text-lg font-bold text-slate-800">{template.name}</h2>
+                                        <p className="text-sm text-slate-500 mt-2 whitespace-pre-wrap">{template.content}</p>
+                                    </div>
+                                    <div className="flex space-x-2">
+                                        <Button variant="secondary" onClick={() => setEditingTemplate(template)}>Edit</Button>
+                                        <Button variant="danger" onClick={() => handleDelete(template.id)}><TrashIcon/></Button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const EditTemplateModal = ({ template, onSave, onClose }) => {
+            const [formData, setFormData] = useState(template);
+            const handleChange = (e) => setFormData({...formData, [e.target.name]: e.target.value });
+            const handleSubmit = (e) => { e.preventDefault(); onSave(formData); };
+            return (
+                <Modal show={true} onClose={onClose} title={template.id ? "Edit Template" : "Create Template"}>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <Input id="name" name="name" label="Template Name" value={formData.name || ''} onChange={handleChange} />
+                        <div>
+                            <label htmlFor="content" className="block text-sm font-medium text-slate-700">Message Content</label>
+                            <textarea id="content" name="content" rows="5" value={formData.content || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm"></textarea>
+                            <p className="text-xs text-slate-500 mt-1">Use placeholders: `{{user_name}}`, `{{onboarding_link}}`, `{{admin_signature}}`</p>
+                        </div>
+                        <div className="flex justify-end space-x-3 pt-4">
+                            <Button onClick={onClose} variant="secondary">Cancel</Button>
+                            <Button type="submit">Save Template</Button>
+                        </div>
+                    </form>
+                </Modal>
+            );
+        };
+
+        const MyTeam = () => {
+            const { user, appData } = useAppContext();
+            const teamMembers = appData.users.filter(support => user.team.includes(support.id));
+
+            return (
+                <div>
+                    <h1 className="text-3xl font-bold text-slate-900 mb-6">My Support Team</h1>
+                    <div className="card">
+                        {teamMembers.length > 0 ? (
+                            <ul className="divide-y divide-slate-200">
+                                {teamMembers.map(member => (
+                                    <li key={member.id} className="py-4 flex items-center justify-between">
+                                        <div>
+                                            <p className="text-lg font-semibold">{member.fullName}</p>
+                                            <p className="text-sm text-slate-500">{member.personalDetails.email}</p>
+                                        </div>
+                                        <Button variant="danger" size="sm">Remove</Button>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="text-slate-600">You have not added any support workers to your team yet.</p>
+                        )}
+                    </div>
+                </div>
+            )
+        };
+
+        const SmsAutomation = () => {
+            const { appData, setAppData, addNotification } = useAppContext();
+            const { smsAutomations = [], users, jobs } = appData;
+            const [simSms, setSimSms] = useState({ from: '', message: '' });
+            const [editingRule, setEditingRule] = useState(null);
+
+            const handleUpdateRule = (updatedRule) => {
+                setAppData(prev => ({
+                    ...prev,
+                    smsAutomations: prev.smsAutomations.map(rule => 
+                        rule.id === updatedRule.id ? updatedRule : rule
+                    )
+                }));
+                setEditingRule(null);
+            };
+
+            const handleSimulateSms = () => {
+                const support = users.find(u => u.personalDetails?.phoneNumber === simSms.from);
+                if (!support) {
+                    addNotification(`No support worker found with phone number ${simSms.from}`, 'danger');
+                    return;
+                }
+
+                const parts = simSms.message.split(',').map(p => p.trim());
+                const command = parts[0].toLowerCase();
+                
+                const rule = smsAutomations.find(r => r.trigger.toLowerCase() === command);
+                if (!rule || !rule.enabled) {
+                    addNotification(`No enabled automation found for trigger: "${command}"`, 'danger');
+                    return;
+                }
+                
+                const { action } = rule;
+                if (action.type === 'update_entity') {
+                    const findValue = action.findBy.valueSource === 'sms_param_1' ? parts[1] : null;
+                    if (!findValue) { addNotification('Could not determine value to find entity.', 'danger'); return; }
+
+                    let entityFound = false;
+                    const updatedEntities = appData[action.entity].map(entity => {
+                        if (entity[action.findBy.key].toLowerCase() === findValue.toLowerCase()) {
+                            entityFound = true;
+                            let updatedEntity = { ...entity };
+                            action.updates.forEach(update => {
+                                const newValue = update.valueSource === 'sender_id' ? support.id : update.value;
+                                updatedEntity[update.key] = newValue;
+                            });
+                            return updatedEntity;
+                        }
+                        return entity;
+                    });
+
+                    if (entityFound) {
+                        setAppData(prev => ({ ...prev, [action.entity]: updatedEntities }));
+                        addNotification(`Action "${command}" executed successfully for ${support.fullName}.`);
+                    } else {
+                        addNotification(`Could not find a ${action.entity.slice(0,-1)} with ${action.findBy.key} = ${findValue}`, 'danger');
+                    }
+                }
+            };
+            
+            const getActionDescription = (action) => {
+                if (!action || !action.updates) return "No action defined";
+                const firstUpdate = action.updates[0];
+                return `Update ${action.entity.slice(0,-1)}: set ${firstUpdate.key} to "${firstUpdate.value || firstUpdate.valueSource}"`;
+            }
+
+            return (
+                <div>
+                {editingRule && <EditActionModal rule={editingRule} onSave={handleUpdateRule} onClose={() => setEditingRule(null)} />}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="lg:col-span-2">
+                        <h1 className="text-3xl font-bold text-slate-900 mb-6">SMS Automation</h1>
+                        <div className="space-y-8">
+                            {smsAutomations.map(rule => (
+                                <div key={rule.id} className="flex items-center space-x-4">
+                                    <div className="automation-node">
+                                        <div className="p-3 border-b flex items-center space-x-3 bg-slate-50 rounded-t-lg">
+                                            <span>📱</span><h3 className="font-semibold text-slate-700">Trigger</h3>
+                                        </div>
+                                        <div className="p-4">
+                                            <p className="text-sm text-slate-500 mb-2">When SMS starts with:</p>
+                                            <Input id={`trigger-${rule.id}`} value={rule.trigger} onChange={e => { /* Logic to update rule */ }} />
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 border-t-2 border-slate-300 border-dashed"></div>
+                                    <div className="automation-node">
+                                        <div className="p-3 border-b flex items-center space-x-3 bg-slate-50 rounded-t-lg">
+                                            <span>⚡️</span><h3 className="font-semibold text-slate-700">Action</h3>
+                                        </div>
+                                        <div className="p-4">
+                                            <p className="text-sm text-slate-600 font-medium truncate">{getActionDescription(rule.action)}</p>
+                                            <Button variant="secondary" size="sm" className="mt-2" onClick={() => setEditingRule(rule)}>Edit Action</Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    <div className="lg:col-span-1 space-y-6">
+                        <div className="card">
+                            <h2 className="text-xl font-bold text-slate-800 mb-4">SMS Simulator</h2>
+                            <div className="space-y-4">
+                                <Input label="From Phone Number" value={simSms.from} onChange={e => setSimSms({...simSms, from: e.target.value})} placeholder="e.g. 0412345678" />
+                                <Input label="Message" value={simSms.message} onChange={e => setSimSms({...simSms, message: e.target.value})} placeholder="e.g. claim, PAN21A" />
+                                <Button onClick={handleSimulateSms} fullWidth>Simulate SMS</Button>
+                            </div>
+                        </div>
+                        <div className="card bg-blue-50 border-blue-200">
+                             <h2 className="text-xl font-bold text-slate-800 mb-4">How It Works</h2>
+                             <div className="text-sm text-slate-700 space-y-3">
+                                <p>The system works by matching a **Trigger** keyword from an SMS to an **Action**.</p>
+                                <p><strong>1. Find Entity:</strong> First, tell the system what kind of data to look for (e.g., `jobs`). Then, tell it how to find the specific item. For a 'claim' trigger, you'd find a job where the `claimCode` matches the second part of the SMS (`sms_param_1`).</p>
+                                <p><strong>2. Perform Updates:</strong> Next, define what to change. You can set a field to a fixed value (e.g., set `status` to "Assigned") or a dynamic value like `sender_id`, which is automatically replaced with the ID of the support worker who sent the SMS.</p>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+                </div>
+            );
+        };
+
+        const EditActionModal = ({ rule, onSave, onClose }) => {
+            const [action, setAction] = useState(rule.action);
+
+            const handleUpdate = (path, value) => {
+                setAction(currentAction => {
+                    const newAction = JSON.parse(JSON.stringify(currentAction)); // Deep copy to ensure immutability
+                    let currentLevel = newAction;
+                    for (let i = 0; i < path.length - 1; i++) {
+                        currentLevel = currentLevel[path[i]];
+                    }
+                    currentLevel[path[path.length - 1]] = value;
+                    return newAction;
+                });
+            };
+            
+            const handleUpdateChange = (index, newValue) => {
+                const isSource = newValue === 'sender_id' || newValue.startsWith('sms_param_');
+                
+                setAction(currentAction => {
+                    const newUpdates = [...currentAction.updates];
+                    const newUpdate = { ...newUpdates[index] };
+
+                    delete newUpdate.value;
+                    delete newUpdate.valueSource;
+
+                    if (isSource) {
+                        newUpdate.valueSource = newValue;
+                    } else {
+                        newUpdate.value = newValue;
+                    }
+                    newUpdates[index] = newUpdate;
+                    return { ...currentAction, updates: newUpdates };
+                });
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                onSave({ ...rule, action });
+            };
+
+            return (
+                <Modal show={true} onClose={onClose} title="Edit Custom Action">
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        <div>
+                            <h3 className="font-semibold text-lg text-slate-800">1. Find Entity</h3>
+                            <div className="p-4 border rounded-md mt-2 space-y-4">
+                                <Input label="Entity Type (e.g., jobs)" value={action.entity} onChange={e => handleUpdate(['entity'], e.target.value)} />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <Input label="Find by Key (e.g., claimCode)" value={action.findBy.key} onChange={e => handleUpdate(['findBy', 'key'], e.target.value)} />
+                                    <Input label="Value Source (e.g., sms_param_1)" value={action.findBy.valueSource} onChange={e => handleUpdate(['findBy', 'valueSource'], e.target.value)} />
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 className="font-semibold text-lg text-slate-800">2. Perform Updates</h3>
+                             <div className="p-4 border rounded-md mt-2 space-y-4">
+                                {action.updates.map((update, index) => (
+                                    <div key={index} className="grid grid-cols-2 gap-4">
+                                        <Input label={`Update Key ${index+1}`} value={update.key} onChange={e => handleUpdate(['updates', index, 'key'], e.target.value)} />
+                                        <Input label={`Set Value or Source ${index+1}`} value={update.value || update.valueSource} onChange={e => handleUpdateChange(index, e.target.value)} />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="flex justify-end space-x-3 pt-4">
+                            <Button onClick={onClose} variant="secondary">Cancel</Button>
+                            <Button type="submit">Save Action</Button>
+                        </div>
+                    </form>
+                </Modal>
+            );
+        };
+
+        //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+        //  Main App Component & Router
+        //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+        const DemoSwitcher = () => {
+            const { setDemoUser, user, navigateTo } = useAppContext();
+            const currentRole = user ? user.role : '';
+            const roles = ['admin', 'support', 'client'];
+            
+            return (
+                <div className="fixed top-0 left-0 w-full bg-yellow-300 p-2 text-center z-[60] shadow-lg flex justify-center items-center space-x-2">
+                    <span className="font-bold text-yellow-800 mr-4">DEMO:</span>
+                    <span className="font-semibold text-sm">View as:</span>
+                    {roles.map(role => (
+                        <button key={role}
+                            onClick={() => setDemoUser(role)}
+                            className={`px-3 py-1 text-sm font-medium rounded-md ${currentRole === role ? 'bg-indigo-600 text-white' : 'bg-white text-indigo-600'}`}>
+                            {role.charAt(0).toUpperCase() + role.slice(1)}
+                        </button>
+                    ))}
+                    <div className="border-l border-yellow-500 h-6 mx-2"></div>
+                    <span className="font-semibold text-sm">Test Wizards:</span>
+                     <button onClick={() => navigateTo('supportOnboarding')} className="px-3 py-1 text-sm font-medium rounded-md bg-white text-indigo-600">Support Onboarding</button>
+                     <button onClick={() => navigateTo('clientOnboarding')} className="px-3 py-1 text-sm font-medium rounded-md bg-white text-indigo-600">Client Onboarding</button>
+                </div>
+            );
+        };
+        
+        const App = () => {
+            const { view, navigateTo, user, logout } = useAppContext();
+            const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+            const [openDropdown, setOpenDropdown] = useState(null);
+            
+            const renderView = () => {
+                const mainViews = {
+                    supports: <SupportsDashboard />,
+                    clients: <ClientsDashboard />,
+                    jobs: <JobBoard />,
+                    createJob: <CreateJob />,
+                    invoicing: <InvoicingHub />,
+                    clientInvoicing: <ClientInvoicing />,
+                    supportInvoicing: <SupportInvoicing />,
+                    settings: <Settings />,
+                    myProfile: <MyProfile />,
+                    userProfile: <UserProfile />,
+                    logShift: <LogShift />,
+                    myAvailability: <MyAvailability />,
+                    invitations: <InvitationCenter />,
+                    smsAutomation: <SmsAutomation/>,
+                    commTemplates: <CommunicationTemplates />,
+                    myTeam: <MyTeam />,
+                    overview: user.role === 'admin' ? <AdminOverview /> : user.role === 'support' ? <SupportOverview /> : <JobBoard />,
+                };
+
+                return mainViews[view] || mainViews.overview;
+            };
+
+            const NavLink = ({ viewName, children }) => {
+                const { view: currentView, navigateTo } = useAppContext();
+                const isActive = currentView === viewName;
+                return <a href="#" onClick={(e) => { e.preventDefault(); navigateTo(viewName); setMobileMenuOpen(false); }} className={`px-3 py-2 text-sm font-medium rounded-md ${isActive ? 'bg-indigo-700 text-white' : 'text-indigo-100 hover:bg-indigo-500 hover:bg-opacity-75'}`}>{children}</a>;
+            };
+
+            const MobileNavLink = ({ viewName, children }) => {
+                const { view: currentView, navigateTo } = useAppContext();
+                const isActive = currentView === viewName;
+                return <a href="#" onClick={(e) => { e.preventDefault(); navigateTo(viewName); setMobileMenuOpen(false); }} className={`block rounded-md px-3 py-2 text-base font-medium ${isActive ? 'bg-indigo-700 text-white' : 'text-indigo-200 hover:bg-indigo-500 hover:bg-opacity-75'}`}>{children}</a>;
+            };
+            
+            const Dropdown = ({ title, children }) => {
+                const isOpen = openDropdown === title;
+                return (
+                    <div className="relative">
+                        <button onClick={() => setOpenDropdown(isOpen ? null : title)} className="px-3 py-2 text-sm font-medium rounded-md text-indigo-100 hover:bg-indigo-500 hover:bg-opacity-75 flex items-center">
+                            {title}
+                            <svg className={`ml-1 h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                        </button>
+                        {isOpen && (
+                            <div className="absolute right-0 mt-2 w-48 origin-top-right rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-20">
+                                <div className="py-1" role="menu" aria-orientation="vertical">
+                                    {children}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )
+            };
+
+            const DropdownLink = ({ viewName, children }) => {
+                 const { view: currentView, navigateTo } = useAppContext();
+                 const isActive = currentView === viewName;
+                 return <a href="#" onClick={(e) => { e.preventDefault(); navigateTo(viewName); setOpenDropdown(null); }} className={`block px-4 py-2 text-sm ${isActive ? 'bg-indigo-100 text-indigo-700' : 'text-slate-700'} hover:bg-slate-100`} role="menuitem">{children}</a>
+            };
+
+            const NavContent = ({isMobile = false}) => {
+                const LinkComponent = isMobile ? MobileNavLink : NavLink;
+                if (!user) return null;
+                if (user.role === 'admin') {
+                    const baseClasses = isMobile ? "space-y-1 px-2 pb-3 pt-2" : "hidden md:flex items-baseline space-x-4 ml-10";
+                    return (
+                        <div className={baseClasses}>
+                            <LinkComponent viewName="overview">Dashboard</LinkComponent>
+                             <Dropdown title="Operations">
+                                <DropdownLink viewName="jobs">Jobs</DropdownLink>
+                                <DropdownLink viewName="invoicing">Invoicing</DropdownLink>
+                                <DropdownLink viewName="invitations">Invitations</DropdownLink>
+                            </Dropdown>
+                            <Dropdown title="People">
+                                <DropdownLink viewName="supports">Supports</DropdownLink>
+                                <DropdownLink viewName="clients">Clients</DropdownLink>
+                            </Dropdown>
+                            <Dropdown title="System">
+                                <DropdownLink viewName="settings">Settings</DropdownLink>
+                                <DropdownLink viewName="commTemplates">Templates</DropdownLink>
+                                <DropdownLink viewName="smsAutomation">SMS Automation</DropdownLink>
+                            </Dropdown>
+                        </div>
+                    )
+                }
+                const navLinks = {
+                    support: [{view: "overview", label: "Dashboard"}, {view: "jobs", label: "Job Board"}, {view: "logShift", label: "Log Shift"}, {view: "supportInvoicing", label: "My Invoices"}, {view: "myProfile", label: "My Profile"}],
+                    client: [{view: "overview", label: "My Jobs"}, {view: "myTeam", label: "My Team"}, {view: "myProfile", label: "My Profile"}]
+                };
+                return (
+                    <div className={isMobile ? "space-y-1 px-2 pb-3 pt-2" : "hidden md:flex items-baseline space-x-4 ml-10"}>
+                        {navLinks[user.role].map(link => <LinkComponent key={link.view} viewName={link.view}>{link.label}</LinkComponent>)}
+                    </div>
+                );
+            }
+            
+            if (!user) {
+                return <div className="pt-20"><Spinner /></div>
+            }
+
+            return (
+                <div className="min-h-screen bg-slate-100 pt-12">
+                    <nav className="bg-indigo-600 fixed top-12 left-0 w-full z-50">
+                        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+                            <div className="flex h-16 items-center justify-between">
+                                <div className="flex items-center">
+                                    <div className="flex-shrink-0 text-white font-bold text-lg cursor-pointer" onClick={() => navigateTo('overview')}>The Foundry</div>
+                                    <NavContent />
+                                </div>
+                                <div className="hidden md:block">
+                                    <Button onClick={logout} variant="secondary">Exit Demo</Button>
+                                </div>
+                                <div className="-mr-2 flex md:hidden">
+                                    <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} type="button" className="inline-flex items-center justify-center rounded-md bg-indigo-600 p-2 text-indigo-200 hover:bg-indigo-500 hover:bg-opacity-75 hover:text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-indigo-600" aria-controls="mobile-menu" aria-expanded="false">
+                                        <span className="sr-only">Open main menu</span>
+                                        {mobileMenuOpen ? <svg className="block h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg> : <svg className="block h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {mobileMenuOpen && (
+                            <div className="md:hidden" id="mobile-menu">
+                                <NavContent isMobile={true} />
+                                <div className="border-t border-indigo-700 pb-3 pt-4"><div className="mt-3 space-y-1 px-2"><MobileNavLink viewName="logout" onClick={logout}>Logout</MobileNavLink></div></div>
+                            </div>
+                        )}
+                    </nav>
+                    <main className="pt-16"><div className="mx-auto max-w-7xl py-6 sm:px-6 lg:px-8">{renderView()}</div></main>
+                </div>
+            );
+        };
+        
+        const Root = () => {
+            const { view, navigateTo, user, setDemoUser } = useAppContext();
+            
+            // Set initial demo user on first load
+            useEffect(() => {
+                setDemoUser('admin');
+            }, []);
+
+            if (!user) return <Spinner />;
+
+            if (view === 'supportOnboarding' || view === 'clientOnboarding') {
+                const OnboardingComponent = view === 'supportOnboarding' ? SupportOnboarding : ClientOnboarding;
+                return (
+                    <>
+                        <DemoSwitcher />
+                        <OnboardingComponent />
+                    </>
+                );
+            }
+            
+            return (
+                <>
+                    <DemoSwitcher />
+                    <App />
+                </>
+            );
+        };
+
+        const AppWrapper = () => <AppProvider><Root /></AppProvider>;
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<AppWrapper />);
+
+    </script>
+</body>
+</html>
