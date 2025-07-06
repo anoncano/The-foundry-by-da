@@ -14,4 +14,10 @@ This repository contains a single-page application for invoicing and shift loggi
    ```
 3. Visit `http://localhost:3000` in your browser.
 
+## Firebase setup
+
+The project is configured for Firebase Hosting using `firebase.json` and `.firebaserc`.
+`public/firebase.js` contains placeholder configuration. Replace the keys with your
+Firebase project credentials before deploying.
+
 The `public/index.html` file uses React via CDN and Babel to run in the browser.
