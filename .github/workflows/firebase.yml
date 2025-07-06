@@ -19,9 +19,6 @@ jobs:
         with:
           node-version: 20
       - run: npm ci
-        working-directory: nextjs-app
-      - run: npm run build
-        working-directory: nextjs-app
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: "${{ secrets.GITHUB_TOKEN }}"
