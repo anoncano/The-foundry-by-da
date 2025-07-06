@@ -1,47 +1,10 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NDIS Invoicing & Shift Logger</title>
-    
-    <!-- Tailwind CSS for styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- React Libraries -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    
-    <!-- Babel to transpile JSX in the browser -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- PDF Generation Libraries -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+/* eslint-disable */
+// @ts-nocheck
+'use client'
+import React, { useState, createContext, useContext, useEffect, useCallback } from 'react';
+import { jsPDF } from 'jspdf';
 
-    <!-- Excel/CSV Parsing Library (SheetJS) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-
-    <!-- Google Fonts: Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-    <style>
-        body { font-family: 'Inter', sans-serif; }
-        .card { background-color: white; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); padding: 1.5rem; }
-        .wizard-step { animation: fadeIn 0.5s; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    </style>
-</head>
-<body class="bg-gray-100">
-
-    <div id="root"></div>
-
-    <script type="text/babel">
-        const { useState, createContext, useContext, useEffect, useCallback } = React;
-        const { jsPDF } = window.jspdf;
-        const { XLSX } = window;
+import * as XLSX from "xlsx";
 
         //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
         //  Mock Data Store
@@ -700,11 +663,10 @@
             return <App />;
         };
 
-        const AppWrapper = () => <AppProvider><Root /></AppProvider>;
-        const container = document.getElementById('root');
-        const root = ReactDOM.createRoot(container);
-        root.render(<AppWrapper />);
-
-    </script>
-</body>
-</html>
+export default function SPA() {
+  return (
+    <AppProvider>
+      <Root />
+    </AppProvider>
+  );
+}
