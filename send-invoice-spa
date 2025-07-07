@@ -3,6 +3,92 @@
 <head>
   <meta charset="UTF-8">
   <title>NDIS SPA2-Style Invoice Trigger</title>
+  <style>
+    body {
+      background: #f6f8fa;
+      font-family: 'Inter', Arial, sans-serif;
+    }
+    .container {
+      background: #fff;
+      max-width: 400px;
+      margin: 60px auto 0 auto;
+      border-radius: 14px;
+      box-shadow: 0 4px 18px #0001;
+      padding: 32px 28px 24px 28px;
+    }
+    h3 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 24px;
+      color: #222;
+      letter-spacing: 0.02em;
+    }
+    .field {
+      margin-bottom: 18px;
+    }
+    label {
+      font-weight: 500;
+      font-size: 0.99rem;
+      color: #333;
+      display: block;
+      margin-bottom: 7px;
+    }
+    input[type="email"], input[type="text"] {
+      width: 100%;
+      font-size: 1rem;
+      padding: 10px;
+      border-radius: 7px;
+      border: 1px solid #dde1e7;
+      margin-bottom: 2px;
+      background: #f7fafd;
+      box-sizing: border-box;
+      transition: border .2s;
+    }
+    input[type="email"]:focus, input[type="text"]:focus {
+      outline: none;
+      border: 1.5px solid #41a4fa;
+      background: #fff;
+    }
+    button {
+      background: #41a4fa;
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      padding: 11px 0;
+      width: 100%;
+      font-size: 1.07rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      cursor: pointer;
+      margin-top: 6px;
+      transition: background .16s;
+    }
+    button:hover {
+      background: #2469a3;
+    }
+    .notify {
+      display: none;
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      background: #41a4fa;
+      color: #fff;
+      padding: 16px 28px;
+      border-radius: 8px;
+      font-weight: 500;
+      font-size: 1rem;
+      box-shadow: 0 4px 24px #0003;
+      z-index: 9999;
+      animation: fadein 0.5s;
+    }
+    .notify.error {
+      background: #e02b2b;
+    }
+    @keyframes fadein {
+      from { opacity: 0; top: 6px; }
+      to   { opacity: 1; top: 24px; }
+    }
+  </style>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -20,14 +106,22 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    window.notify = function(msg, isError = false) {
+      const note = document.getElementById('notify');
+      note.textContent = msg;
+      note.className = "notify" + (isError ? " error" : "");
+      note.style.display = "block";
+      setTimeout(() => { note.style.display = "none"; }, 2800);
+    }
+
     window.triggerInvoice = async function() {
       const recipientEmail = document.getElementById('emailInput').value;
-      if (!recipientEmail) {
-        alert("Please enter a recipient email.");
+      const invoiceNumber = document.getElementById('invoiceNumberInput').value;
+      if (!recipientEmail || !invoiceNumber) {
+        notify("Please enter a recipient email and invoice number.", true);
         return;
       }
 
-      // SPA2-style table line items
       const lineItems = [
         {
           date: "2025-07-21",
@@ -47,32 +141,48 @@
         }
       ];
 
-      await addDoc(collection(db, "spa2InvoiceRequests"), {
-        invoiceNumber: `INV-${Date.now()}`,
-        createdAt: serverTimestamp(),
-        recipientEmail,
-        client: {
-          fullName: "Peter Pan",
-          address: "1 Neverland Ave, Fantasia NSW 2888",
-          ndisNumber: "123456789"
-        },
-        support: {
-          fullName: "John Doe",
-          abn: "55 123 456 789",
-          address: "123 Fake St, Sydney NSW 2000",
-          accountName: "John Doe",
-          bsb: "012-345",
-          accountNumber: "12345678"
-        },
-        lineItems
-      });
-      alert("SPA2-style Invoice request created!");
+      try {
+        await addDoc(collection(db, "spa2InvoiceRequests"), {
+          invoiceNumber,
+          createdAt: serverTimestamp(),
+          recipientEmail,
+          client: {
+            fullName: "Peter Pan",
+            address: "1 Neverland Ave, Fantasia NSW 2888",
+            ndisNumber: "123456789"
+          },
+          support: {
+            fullName: "John Doe",
+            abn: "55 123 456 789",
+            address: "123 Fake St, Sydney NSW 2000",
+            accountName: "John Doe",
+            bsb: "012-345",
+            accountNumber: "12345678"
+          },
+          lineItems
+        });
+        notify("SPA2-style Invoice request created!");
+        document.getElementById('emailInput').value = "";
+        document.getElementById('invoiceNumberInput').value = "";
+      } catch (error) {
+        notify("Error: " + error.message, true);
+      }
     }
   </script>
 </head>
 <body>
-  <h3>NDIS Invoice (SPA2 Table Format)</h3>
-  <input type="email" id="emailInput" placeholder="Recipient Email" required />
-  <button onclick="triggerInvoice()">Trigger SPA2-Style Invoice</button>
+  <div class="container">
+    <h3>NDIS Invoice<br>SPA2 Table Format</h3>
+    <div class="field">
+      <label for="emailInput">Recipient Email</label>
+      <input type="email" id="emailInput" placeholder="Recipient Email" required autocomplete="off" />
+    </div>
+    <div class="field">
+      <label for="invoiceNumberInput">Invoice Number</label>
+      <input type="text" id="invoiceNumberInput" placeholder="Invoice Number" required autocomplete="off" />
+    </div>
+    <button onclick="triggerInvoice()">Trigger SPA2-Style Invoice</button>
+  </div>
+  <div id="notify" class="notify"></div>
 </body>
 </html>
