@@ -2,8 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Invoice Request Trigger</title>
+  <title>NDIS SPA2-Style Invoice Trigger</title>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
     import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -12,7 +11,7 @@
       apiKey: "AIzaSyAefBe7cgSA8FNJzR7p5NHWTsbLFrRuyKY",
       authDomain: "the-foundry-by-da.firebaseapp.com",
       projectId: "the-foundry-by-da",
-      storageBucket: "the-foundry-by-da.firebasestorage.app",
+      storageBucket: "the-foundry-by-da.appspot.com",
       messagingSenderId: "825755098252",
       appId: "1:825755098252:web:ad6e84e40be56271fbefa9",
       measurementId: "G-72Z53Z6LNR"
@@ -28,41 +27,52 @@
         return;
       }
 
-      try {
-        await addDoc(collection(db, "invoiceRequests"), {
-          invoiceNumber: `INV-${Date.now()}`,
-          createdAt: serverTimestamp(),
-          recipientEmail,
-          from: "admin@the-foundry-by-da.com",
-          client: {
-            fullName: "Client Name",
-            address: "123 Client Street",
-            ndisNumber: "123456789"
-          },
-          support: {
-            fullName: "Support Worker",
-            abn: "12345678901",
-            address: "456 Support Avenue",
-            accountName: "Support Worker Account",
-            bsb: "123-456",
-            accountNumber: "12345678"
-          },
-          lineItems: [
-            { description: "Service 1", quantity: 2, price: 50 },
-            { description: "Service 2", quantity: 1, price: 75 }
-          ]
-        });
-        alert("Invoice request created!");
-      } catch (error) {
-        console.error("Error creating invoice request: ", error);
-      }
+      // SPA2-style table line items
+      const lineItems = [
+        {
+          date: "2025-07-21",
+          support: "Self-Care - Standard",
+          itemCode: "01_011_0107_1_1",
+          qty: 2,
+          rate: 67.56,
+          total: 135.12
+        },
+        {
+          date: "2025-07-21",
+          support: "Provider Travel - Self Care",
+          itemCode: "01_799_0104_1_1",
+          qty: 15,
+          rate: 0.99,
+          total: 14.85
+        }
+      ];
+
+      await addDoc(collection(db, "spa2InvoiceRequests"), {
+        invoiceNumber: `INV-${Date.now()}`,
+        createdAt: serverTimestamp(),
+        recipientEmail,
+        client: {
+          fullName: "Peter Pan",
+          address: "1 Neverland Ave, Fantasia NSW 2888",
+          ndisNumber: "123456789"
+        },
+        support: {
+          fullName: "John Doe",
+          abn: "55 123 456 789",
+          address: "123 Fake St, Sydney NSW 2000",
+          accountName: "John Doe",
+          bsb: "012-345",
+          accountNumber: "12345678"
+        },
+        lineItems
+      });
+      alert("SPA2-style Invoice request created!");
     }
   </script>
 </head>
 <body>
-
-<input type="email" id="emailInput" placeholder="Recipient Email" required />
-<button onclick="triggerInvoice()">Trigger Invoice Email</button>
-
+  <h3>NDIS Invoice (SPA2 Table Format)</h3>
+  <input type="email" id="emailInput" placeholder="Recipient Email" required />
+  <button onclick="triggerInvoice()">Trigger SPA2-Style Invoice</button>
 </body>
 </html>
