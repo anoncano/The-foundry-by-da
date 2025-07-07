@@ -112,8 +112,8 @@
                 { id: 'auto-clockout', trigger: 'clockout', enabled: true, action: { type: 'update_entity', entity: 'draftShifts', findBy: { key: 'supportId', valueSource: 'sender_id', and: { key: 'status', value: 'active' } }, updates: [ { key: 'status', value: 'needs_completion' } ] } },
             ],
             communicationTemplates: [
-                { id: 'tpl-support', name: 'Support Worker Welcome', content: "Hello {{user_name}}, you have been invited to join The Foundry. Please set up your account here: {{onboarding_link}}. - {{admin_signature}}" },
-                { id: 'tpl-client', name: 'Client Welcome', content: "Welcome to The Foundry, {{user_name}}! Please complete your profile to get started: {{onboarding_link}}. - {{admin_signature}}" }
+                { id: 'tpl-support', name: 'Support Worker Welcome', content: "Hello, you have been invited to join The Foundry. Please set up your account here: {{onboarding_link}}. - {{admin_signature}}" },
+                { id: 'tpl-client', name: 'Client Welcome', content: "Welcome to The Foundry! Please complete your profile to get started: {{onboarding_link}}. - {{admin_signature}}" }
             ],
              recentActivity: [
                 { id: 1, text: "New job request created for Wendy Darling.", time: "10m ago" },
@@ -244,6 +244,19 @@
         //  Authentication & Onboarding Views
         //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
         
+        {/* PRODUCTION ONBOARDING FLOW EXPLANATION
+            ---------------------------------------
+            The following components (SupportOnboarding, ClientOnboarding) are currently
+            launched from the demo bar for testing. In a live production environment,
+            the flow would be as follows:
+            1. Admin sends an invite from the "Invitation Center".
+            2. User receives an email/SMS with a unique link (e.g., /signup?token=...).
+            3. This link leads to a "Create Account" page (similar to the old SignUpScreen)
+               where they set their name, email, and password.
+            4. Upon successful account creation, the system logs them in and immediately
+               redirects them to the appropriate onboarding wizard below to complete
+               their profile details.
+        */}
         const SupportOnboarding = () => {
             const { user, navigateTo } = useAppContext();
             const [step, setStep] = useState(1);
@@ -898,6 +911,7 @@
                                     <DetailItem label="Full Name" value={profileUser.fullName} />
                                     <DetailItem label="Client Type" value={profileUser.clientType === 'ndis' ? 'NDIS Participant' : 'Private Client'} />
                                     {profileUser.clientType === 'ndis' && <DetailItem label="NDIS Number" value={profileUser.ndisNumber} />}
+                                    {profileUser.clientType === 'ndis' && <DetailItem label="Plan End Date" value={new Date(profileUser.planEndDate).toLocaleDateString()} />}
                                     {profileUser.clientType === 'ndis' && <DetailItem label="Billing Email" value={profileUser.billingDetails.managerEmail} />}
                                 </dl>
                                 {user.role === 'admin' && (
@@ -1205,14 +1219,14 @@
 
         const InvitationCenter = () => {
             const { addNotification, appData } = useAppContext();
-            const [formData, setFormData] = useState({ name: '', email: '', role: 'support', templateId: appData.communicationTemplates[0]?.id || '' });
+            const [formData, setFormData] = useState({ contact: '', role: 'support', templateId: appData.communicationTemplates[0]?.id || '' });
             const [preview, setPreview] = useState('');
 
             useEffect(() => {
                 const template = appData.communicationTemplates.find(t => t.id === formData.templateId);
                 if (template) {
                     let content = template.content;
-                    content = content.replace('{{user_name}}', formData.name || '[Name]');
+                    content = content.replace('{{user_name}}', '[New User]'); // Name is not collected here anymore
                     content = content.replace('{{onboarding_link}}', '[Onboarding Link]');
                     const admin = appData.users.find(u => u.role === 'admin');
                     content = content.replace('{{admin_signature}}', admin.signature || '');
@@ -1224,9 +1238,9 @@
 
             const handleSubmit = (e) => {
                 e.preventDefault();
-                // In a real app, this would trigger a backend process to send an email.
-                addNotification(`Onboarding invitation sent to ${formData.email}.`);
-                setFormData({ name: '', email: '', role: 'support', templateId: appData.communicationTemplates[0]?.id || '' });
+                // In a real app, this would trigger a backend process to send an email or SMS.
+                addNotification(`Onboarding invitation sent to ${formData.contact}.`);
+                setFormData({ contact: '', role: 'support', templateId: appData.communicationTemplates[0]?.id || '' });
             };
 
             return (
@@ -1234,7 +1248,7 @@
                     <h1 className="text-3xl font-bold text-slate-900 mb-6">Invitation Center</h1>
                     <div className="card max-w-2xl mx-auto">
                         <h2 className="text-xl font-bold text-slate-800">Send New User Onboarding Link</h2>
-                        <p className="text-sm text-slate-600 mt-1">The user will receive an email with a unique link to sign up and complete their profile.</p>
+                        <p className="text-sm text-slate-600 mt-1">The user will receive a message with a unique link to sign up and complete their profile.</p>
                         <form onSubmit={handleSubmit} className="mt-6 space-y-6">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-2">User Type</label>
@@ -1243,8 +1257,7 @@
                                     <label className="flex items-center"><input type="radio" name="role" value="client" checked={formData.role === 'client'} onChange={handleChange} className="h-4 w-4 text-indigo-600 border-slate-300" /><span className="ml-2">Client</span></label>
                                 </div>
                             </div>
-                            <Input id="name" name="name" label="Full Name" value={formData.name} onChange={handleChange} required />
-                            <Input id="email" name="email" type="email" label="Email Address" value={formData.email} onChange={handleChange} required />
+                            <Input id="contact" name="contact" label="Email or Phone Number" value={formData.contact} onChange={handleChange} required />
                             <div>
                                 <label htmlFor="templateId" className="block text-sm font-medium text-slate-700">Message Template</label>
                                 <select id="templateId" name="templateId" value={formData.templateId} onChange={handleChange} className="mt-1 block w-full rounded-md">
@@ -1323,7 +1336,7 @@
                         <div>
                             <label htmlFor="content" className="block text-sm font-medium text-slate-700">Message Content</label>
                             <textarea id="content" name="content" rows="5" value={formData.content || ''} onChange={handleChange} className="mt-1 block w-full rounded-md border-slate-300 shadow-sm"></textarea>
-                            <p className="text-xs text-slate-500 mt-1">Use placeholders: `{{user_name}}`, `{{onboarding_link}}`, `{{admin_signature}}`</p>
+                            <p className="text-xs text-slate-500 mt-1">Use placeholders: {'{{user_name}}'}, {'{{onboarding_link}}'}, {'{{admin_signature}}'}</p>
                         </div>
                         <div className="flex justify-end space-x-3 pt-4">
                             <Button onClick={onClose} variant="secondary">Cancel</Button>
@@ -1368,13 +1381,38 @@
             const [simSms, setSimSms] = useState({ from: '', message: '' });
             const [editingRule, setEditingRule] = useState(null);
 
+            const handleAddRule = () => {
+                const newRule = { 
+                    id: `auto-${Date.now()}`, 
+                    trigger: 'new_trigger', 
+                    enabled: true, 
+                    action: { 
+                        type: 'update_entity', 
+                        entity: 'jobs', 
+                        findBy: { key: '', valueSource: '' }, 
+                        updates: [{ key: '', value: '' }] 
+                    } 
+                };
+                setEditingRule(newRule);
+            };
+
             const handleUpdateRule = (updatedRule) => {
-                setAppData(prev => ({
-                    ...prev,
-                    smsAutomations: prev.smsAutomations.map(rule => 
-                        rule.id === updatedRule.id ? updatedRule : rule
-                    )
-                }));
+                const existing = appData.smsAutomations.some(r => r.id === updatedRule.id);
+                if (existing) {
+                    setAppData(prev => ({
+                        ...prev,
+                        smsAutomations: prev.smsAutomations.map(rule => 
+                            rule.id === updatedRule.id ? updatedRule : rule
+                        )
+                    }));
+                    addNotification("Automation rule updated!");
+                } else {
+                     setAppData(prev => ({
+                        ...prev,
+                        smsAutomations: [...prev.smsAutomations, updatedRule]
+                    }));
+                    addNotification("Automation rule created!");
+                }
                 setEditingRule(null);
             };
 
@@ -1423,7 +1461,7 @@
             };
             
             const getActionDescription = (action) => {
-                if (!action || !action.updates) return "No action defined";
+                if (!action || !action.updates || action.updates.length === 0) return "No action defined";
                 const firstUpdate = action.updates[0];
                 return `Update ${action.entity.slice(0,-1)}: set ${firstUpdate.key} to "${firstUpdate.value || firstUpdate.valueSource}"`;
             }
@@ -1433,7 +1471,10 @@
                 {editingRule && <EditActionModal rule={editingRule} onSave={handleUpdateRule} onClose={() => setEditingRule(null)} />}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div className="lg:col-span-2">
-                        <h1 className="text-3xl font-bold text-slate-900 mb-6">SMS Automation</h1>
+                        <div className="flex justify-between items-center mb-6">
+                            <h1 className="text-3xl font-bold text-slate-900">SMS Automation</h1>
+                            <Button onClick={handleAddRule}>+ Add New Rule</Button>
+                        </div>
                         <div className="space-y-8">
                             {smsAutomations.map(rule => (
                                 <div key={rule.id} className="flex items-center space-x-4">
@@ -1484,11 +1525,19 @@
         };
 
         const EditActionModal = ({ rule, onSave, onClose }) => {
-            const [action, setAction] = useState(rule.action);
+            // FIX: Initialize state with a deep copy and ensure updates array exists.
+            const [action, setAction] = useState(JSON.parse(JSON.stringify(rule.action || { updates: [] })));
+            
+            useEffect(() => {
+                // Ensure updates array exists when component loads
+                if (!action.updates) {
+                    setAction(prev => ({...prev, updates: []}));
+                }
+            }, []);
 
             const handleUpdate = (path, value) => {
                 setAction(currentAction => {
-                    const newAction = JSON.parse(JSON.stringify(currentAction)); // Deep copy to ensure immutability
+                    const newAction = JSON.parse(JSON.stringify(currentAction)); 
                     let currentLevel = newAction;
                     for (let i = 0; i < path.length - 1; i++) {
                         currentLevel = currentLevel[path[i]];
@@ -1502,8 +1551,8 @@
                 const isSource = newValue === 'sender_id' || newValue.startsWith('sms_param_');
                 
                 setAction(currentAction => {
-                    const newUpdates = [...currentAction.updates];
-                    const newUpdate = { ...newUpdates[index] };
+                    const newUpdates = [...(currentAction.updates || [])];
+                    const newUpdate = { ...(newUpdates[index] || {}) };
 
                     delete newUpdate.value;
                     delete newUpdate.valueSource;
@@ -1529,20 +1578,20 @@
                         <div>
                             <h3 className="font-semibold text-lg text-slate-800">1. Find Entity</h3>
                             <div className="p-4 border rounded-md mt-2 space-y-4">
-                                <Input label="Entity Type (e.g., jobs)" value={action.entity} onChange={e => handleUpdate(['entity'], e.target.value)} />
+                                <Input label="Entity Type (e.g., jobs)" value={action.entity || ''} onChange={e => handleUpdate(['entity'], e.target.value)} />
                                 <div className="grid grid-cols-2 gap-4">
-                                    <Input label="Find by Key (e.g., claimCode)" value={action.findBy.key} onChange={e => handleUpdate(['findBy', 'key'], e.target.value)} />
-                                    <Input label="Value Source (e.g., sms_param_1)" value={action.findBy.valueSource} onChange={e => handleUpdate(['findBy', 'valueSource'], e.target.value)} />
+                                    <Input label="Find by Key (e.g., claimCode)" value={action.findBy?.key || ''} onChange={e => handleUpdate(['findBy', 'key'], e.target.value)} />
+                                    <Input label="Value Source (e.g., sms_param_1)" value={action.findBy?.valueSource || ''} onChange={e => handleUpdate(['findBy', 'valueSource'], e.target.value)} />
                                 </div>
                             </div>
                         </div>
                         <div>
                             <h3 className="font-semibold text-lg text-slate-800">2. Perform Updates</h3>
                              <div className="p-4 border rounded-md mt-2 space-y-4">
-                                {action.updates.map((update, index) => (
+                                {(action.updates || []).map((update, index) => (
                                     <div key={index} className="grid grid-cols-2 gap-4">
-                                        <Input label={`Update Key ${index+1}`} value={update.key} onChange={e => handleUpdate(['updates', index, 'key'], e.target.value)} />
-                                        <Input label={`Set Value or Source ${index+1}`} value={update.value || update.valueSource} onChange={e => handleUpdateChange(index, e.target.value)} />
+                                        <Input label={`Update Key ${index+1}`} value={update.key || ''} onChange={e => handleUpdate(['updates', index, 'key'], e.target.value)} />
+                                        <Input label={`Set Value or Source ${index+1}`} value={update.value || update.valueSource || ''} onChange={e => handleUpdateChange(index, e.target.value)} />
                                     </div>
                                 ))}
                             </div>
