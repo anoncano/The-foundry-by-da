@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Invoice Request Trigger</title>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAefBe7cgSA8FNJzR7p5NHWTsbLFrRuyKY",
+      authDomain: "the-foundry-by-da.firebaseapp.com",
+      projectId: "the-foundry-by-da",
+      storageBucket: "the-foundry-by-da.firebasestorage.app",
+      messagingSenderId: "825755098252",
+      appId: "1:825755098252:web:ad6e84e40be56271fbefa9",
+      measurementId: "G-72Z53Z6LNR"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    window.triggerInvoice = async function() {
+      const recipientEmail = document.getElementById('emailInput').value;
+      if (!recipientEmail) {
+        alert("Please enter a recipient email.");
+        return;
+      }
+
+      try {
+        await addDoc(collection(db, "invoiceRequests"), {
+          invoiceNumber: `INV-${Date.now()}`,
+          createdAt: serverTimestamp(),
+          recipientEmail,
+          from: "admin@the-foundry-by-da.com",
+          client: {
+            fullName: "Client Name",
+            address: "123 Client Street",
+            ndisNumber: "123456789"
+          },
+          support: {
+            fullName: "Support Worker",
+            abn: "12345678901",
+            address: "456 Support Avenue",
+            accountName: "Support Worker Account",
+            bsb: "123-456",
+            accountNumber: "12345678"
+          },
+          lineItems: [
+            { description: "Service 1", quantity: 2, price: 50 },
+            { description: "Service 2", quantity: 1, price: 75 }
+          ]
+        });
+        alert("Invoice request created!");
+      } catch (error) {
+        console.error("Error creating invoice request: ", error);
+      }
+    }
+  </script>
+</head>
+<body>
+
+<input type="email" id="emailInput" placeholder="Recipient Email" required />
+<button onclick="triggerInvoice()">Trigger Invoice Email</button>
+
+</body>
+</html>
